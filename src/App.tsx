@@ -17,10 +17,11 @@
 import { useRef, useState } from "react";
 import "./App.scss";
 import { LiveAPIProvider } from "./contexts/LiveAPIContext";
-import SidePanel from "./components/side-panel/SidePanel";
-import { Altair } from "./components/altair/Altair";
+import { DebugPanel } from "./components/debug-panel/DebugPanel";
 import ControlTray from "./components/control-tray/ControlTray";
-import cn from "classnames";
+import { TerminalLayout } from "./components/TerminalLayout/TerminalLayout";
+import ChatPanel from "./components/ChatPanel/ChatPanel";
+import { ThemeProvider } from 'styled-components';
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
@@ -30,43 +31,38 @@ if (typeof API_KEY !== "string") {
 const host = "generativelanguage.googleapis.com";
 const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent`;
 
+// Define theme
+const theme = {
+  colors: {
+    primary: '#ff6b6b',
+    background: '#000000',
+    surface: 'rgba(20, 20, 20, 0.95)',
+  },
+};
+
 function App() {
-  // this video reference is used for displaying the active stream, whether that is the webcam or screen capture
-  // feel free to style as you see fit
   const videoRef = useRef<HTMLVideoElement>(null);
-  // either the screen capture, the video or null, if null we hide it
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
 
   return (
-    <div className="App">
-      <LiveAPIProvider url={uri} apiKey={API_KEY}>
-        <div className="streaming-console">
-          <SidePanel />
-          <main>
-            <div className="main-app-area">
-              {/* APP goes here */}
-              <Altair />
-              <video
-                className={cn("stream", {
-                  hidden: !videoRef.current || !videoStream,
-                })}
-                ref={videoRef}
-                autoPlay
-                playsInline
+    <ThemeProvider theme={theme}>
+      <div className="App terminal-screen">
+        <LiveAPIProvider url={uri} apiKey={API_KEY}>
+          <TerminalLayout
+            debugPanel={<DebugPanel />}
+            chatPanel={<ChatPanel />}
+            controlPanel={
+              <ControlTray
+                videoRef={videoRef}
+                supportsVideo={true}
+                onVideoStreamChange={setVideoStream}
               />
-            </div>
-
-            <ControlTray
-              videoRef={videoRef}
-              supportsVideo={true}
-              onVideoStreamChange={setVideoStream}
-            >
-              {/* put your own buttons here */}
-            </ControlTray>
-          </main>
-        </div>
-      </LiveAPIProvider>
-    </div>
+            }
+            videoRef={videoRef}
+          />
+        </LiveAPIProvider>
+      </div>
+    </ThemeProvider>
   );
 }
 

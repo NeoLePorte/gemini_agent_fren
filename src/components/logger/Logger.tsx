@@ -38,60 +38,77 @@ import {
   ToolCallCancellationMessage,
   ToolCallMessage,
   ToolResponseMessage,
+  LiveOutgoingMessage,
+  LiveIncomingMessage,
 } from "../../multimodal-live-types";
+import styled from "styled-components";
 
-const formatTime = (d: Date) => d.toLocaleTimeString().slice(0, -3);
+const LoggerContainer = styled.div`
+  .log-entry {
+    margin-bottom: 10px;
+    
+    .timestamp {
+      color: ${props => props.theme.colors.primary};
+      opacity: 0.7;
+      margin-right: 10px;
+    }
+    
+    .message {
+      &.client {
+        color: ${props => props.theme.colors.primary};
+      }
+      
+      &.server {
+        opacity: 0.8;
+      }
+    }
+  }
 
-const LogEntry = ({
-  log,
-  MessageComponent,
-}: {
-  log: StreamingLog;
-  MessageComponent: ({
-    message,
-  }: {
-    message: StreamingLog["message"];
-  }) => ReactNode;
-}): JSX.Element => (
-  <li
-    className={cn(
-      `plain-log`,
-      `source-${log.type.slice(0, log.type.indexOf("."))}`,
-      {
-        receive: log.type.includes("receive"),
-        send: log.type.includes("send"),
-      },
-    )}
-  >
-    <span className="timestamp">{formatTime(log.date)}</span>
-    <span className="source">{log.type}</span>
-    <span className="message">
-      <MessageComponent message={log.message} />
-    </span>
-    {log.count && <span className="count">{log.count}</span>}
-  </li>
-);
+  .rich-log {
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid ${props => `${props.theme.colors.primary}33`};
+    border-radius: 4px;
+    
+    h4 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.8;
+    }
+    
+    .part {
+      margin: 5px 0;
+      
+      &.part-text {
+        white-space: pre-wrap;
+      }
+      
+      &.part-executableCode, &.part-codeExecutionResult {
+        h5 {
+          margin: 10px 0 5px;
+          font-size: 12px;
+          opacity: 0.8;
+        }
+      }
+    }
+  }
+`;
 
-const PlainTextMessage = ({
-  message,
-}: {
-  message: StreamingLog["message"];
-}) => <span>{message as string}</span>;
+type MessageType = string | LiveOutgoingMessage | LiveIncomingMessage;
 
-type Message = { message: StreamingLog["message"] };
+interface MessageProps {
+  message: MessageType;
+}
 
-const AnyMessage = ({ message }: Message) => (
-  <pre>{JSON.stringify(message, null, "  ")}</pre>
-);
-
-function tryParseCodeExecutionResult(output: string) {
+const tryParseCodeExecutionResult = (output: string) => {
   try {
-    const json = JSON.parse(output);
-    return JSON.stringify(json, null, "  ");
-  } catch (e) {
+    return JSON.stringify(JSON.parse(output), null, 2);
+  } catch {
     return output;
   }
-}
+};
 
 const RenderPart = ({ part }: { part: Part }) =>
   part.text && part.text.length ? (
@@ -119,18 +136,24 @@ const RenderPart = ({ part }: { part: Part }) =>
     </div>
   );
 
-const ClientContentLog = ({ message }: Message) => {
-  const { turns, turnComplete } = (message as ClientContentMessage)
-    .clientContent;
+const PlainTextMessage = ({ message }: { message: string }) => (
+  <div className="log-entry">
+    <span className="message">{message}</span>
+  </div>
+);
+
+const ClientContentLog = ({ message }: MessageProps) => {
+  if (!isClientContentMessage(message)) return null;
+  const { turns, turnComplete } = message.clientContent;
   return (
-    <div className="rich-log client-content user">
-      <h4 className="roler-user">User</h4>
+    <div className="rich-log client-content">
+      <h4>User</h4>
       {turns.map((turn, i) => (
         <div key={`message-turn-${i}`}>
           {turn.parts
             .filter((part) => !(part.text && part.text === "\n"))
             .map((part, j) => (
-              <RenderPart part={part} key={`message-turh-${i}-part-${j}`} />
+              <RenderPart part={part} key={`message-turn-${i}-part-${j}`} />
             ))}
         </div>
       ))}
@@ -139,61 +162,54 @@ const ClientContentLog = ({ message }: Message) => {
   );
 };
 
-const ToolCallLog = ({ message }: Message) => {
-  const { toolCall } = message as ToolCallMessage;
+const ToolCallLog = ({ message }: MessageProps) => {
+  if (!isToolCallMessage(message)) return null;
+  const { toolCall } = message;
   return (
-    <div className={cn("rich-log tool-call")}>
-      {toolCall.functionCalls.map((fc, i) => (
-        <div key={fc.id} className="part part-functioncall">
-          <h5>Function call: {fc.name}</h5>
-          <SyntaxHighlighter language="json" style={dark}>
-            {JSON.stringify(fc, null, "  ")}
-          </SyntaxHighlighter>
-        </div>
-      ))}
+    <div className="rich-log tool-call">
+      <h4>Tool Call</h4>
+      <SyntaxHighlighter language="json" style={dark}>
+        {JSON.stringify(toolCall, null, 2)}
+      </SyntaxHighlighter>
     </div>
   );
 };
 
-const ToolCallCancellationLog = ({ message }: Message): JSX.Element => (
-  <div className={cn("rich-log tool-call-cancellation")}>
-    <span>
-      {" "}
-      ids:{" "}
-      {(message as ToolCallCancellationMessage).toolCallCancellation.ids.map(
-        (id) => (
-          <span className="inline-code" key={`cancel-${id}`}>
-            "{id}"
-          </span>
-        ),
-      )}
-    </span>
-  </div>
-);
+const ToolCallCancellationLog = ({ message }: MessageProps) => {
+  if (!isToolCallCancellationMessage(message)) return null;
+  const { toolCallCancellation } = message;
+  return (
+    <div className="rich-log tool-call-cancellation">
+      <h4>Tool Call Cancellation</h4>
+      <SyntaxHighlighter language="json" style={dark}>
+        {JSON.stringify(toolCallCancellation, null, 2)}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
 
-const ToolResponseLog = ({ message }: Message): JSX.Element => (
-  <div className={cn("rich-log tool-response")}>
-    {(message as ToolResponseMessage).toolResponse.functionResponses.map(
-      (fc) => (
-        <div key={`tool-response-${fc.id}`} className="part">
-          <h5>Function Response: {fc.id}</h5>
-          <SyntaxHighlighter language="json" style={dark}>
-            {JSON.stringify(fc.response, null, "  ")}
-          </SyntaxHighlighter>
-        </div>
-      ),
-    )}
-  </div>
-);
+const ToolResponseLog = ({ message }: MessageProps) => {
+  if (!isToolResponseMessage(message)) return null;
+  const { toolResponse } = message;
+  return (
+    <div className="rich-log tool-response">
+      <h4>Tool Response</h4>
+      <SyntaxHighlighter language="json" style={dark}>
+        {JSON.stringify(toolResponse, null, 2)}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
 
-const ModelTurnLog = ({ message }: Message): JSX.Element => {
-  const serverContent = (message as ServerContentMessage).serverContent;
-  const { modelTurn } = serverContent as ModelTurn;
-  const { parts } = modelTurn;
+const ModelTurnLog = ({ message }: MessageProps) => {
+  if (!isServerContenteMessage(message)) return null;
+  const { serverContent } = message;
+  if (!isModelTurn(serverContent)) return null;
+  const { parts } = serverContent.modelTurn;
 
   return (
-    <div className="rich-log model-turn model">
-      <h4 className="role-model">Model</h4>
+    <div className="rich-log model-turn">
+      <h4>Model</h4>
       {parts
         .filter((part) => !(part.text && part.text === "\n"))
         .map((part, j) => (
@@ -203,8 +219,12 @@ const ModelTurnLog = ({ message }: Message): JSX.Element => {
   );
 };
 
-const CustomPlainTextLog = (msg: string) => () => (
-  <PlainTextMessage message={msg} />
+const AnyMessage = ({ message }: MessageProps) => (
+  <div className="log-entry">
+    <SyntaxHighlighter language="json" style={dark}>
+      {JSON.stringify(message, null, 2)}
+    </SyntaxHighlighter>
+  </div>
 );
 
 export type LoggerFilterType = "conversations" | "tools" | "none";
@@ -223,9 +243,9 @@ const filters: Record<LoggerFilterType, (log: StreamingLog) => boolean> = {
   none: () => true,
 };
 
-const component = (log: StreamingLog) => {
+const getComponent = (log: StreamingLog): React.FC<MessageProps> => {
   if (typeof log.message === "string") {
-    return PlainTextMessage;
+    return () => <PlainTextMessage message={log.message as string} />;
   }
   if (isClientContentMessage(log.message)) {
     return ClientContentLog;
@@ -242,10 +262,10 @@ const component = (log: StreamingLog) => {
   if (isServerContenteMessage(log.message)) {
     const { serverContent } = log.message;
     if (isInterrupted(serverContent)) {
-      return CustomPlainTextLog("interrupted");
+      return () => <PlainTextMessage message="interrupted" />;
     }
     if (isTurnComplete(serverContent)) {
-      return CustomPlainTextLog("turnComplete");
+      return () => <PlainTextMessage message="turnComplete" />;
     }
     if (isModelTurn(serverContent)) {
       return ModelTurnLog;
@@ -254,20 +274,21 @@ const component = (log: StreamingLog) => {
   return AnyMessage;
 };
 
-export default function Logger({ filter = "none" }: LoggerProps) {
-  const { logs } = useLoggerStore();
-
-  const filterFn = filters[filter];
+export default function Logger({ filter }: LoggerProps) {
+  const logs = useLoggerStore((state) => state.logs);
+  const filteredLogs = logs.filter(filters[filter]);
 
   return (
-    <div className="logger">
-      <ul className="logger-list">
-        {logs.filter(filterFn).map((log, key) => {
-          return (
-            <LogEntry MessageComponent={component(log)} log={log} key={key} />
-          );
-        })}
-      </ul>
-    </div>
+    <LoggerContainer>
+      {filteredLogs.map((log, i) => {
+        const Component = getComponent(log);
+        return (
+          <div key={i} className={cn("log-entry", log.type)}>
+            <span className="timestamp">{log.date.toLocaleTimeString()}</span>
+            <Component message={log.message} />
+          </div>
+        );
+      })}
+    </LoggerContainer>
   );
 }

@@ -14,48 +14,127 @@
  * limitations under the License.
  */
 
-import cn from "classnames";
 import { useEffect, useRef, useState } from "react";
-import { RiSidebarFoldLine, RiSidebarUnfoldLine } from "react-icons/ri";
-import Select from "react-select";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { useLoggerStore } from "../../lib/store-logger";
-import Logger, { LoggerFilterType } from "../logger/Logger";
-import "./side-panel.scss";
+import { StreamingLog } from "../../multimodal-live-types";
+import styled from "styled-components";
+import Select from "react-select";
+import cn from "classnames";
 
-const filterOptions = [
-  { value: "conversations", label: "Conversations" },
-  { value: "tools", label: "Tool Use" },
-  { value: "none", label: "All" },
+const DebugContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: ${props => props.theme.colors.primary};
+  font-family: 'Space Mono', monospace;
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    align-items: center;
+
+    .filter-select {
+      flex: 1;
+      
+      .react-select__control {
+        background: ${props => props.theme.colors.background};
+        border: 2px solid ${props => props.theme.colors.primary};
+        min-height: 33px;
+        
+        &:hover {
+          border-color: ${props => props.theme.colors.primary};
+        }
+      }
+      
+      .react-select__single-value {
+        color: ${props => props.theme.colors.primary};
+      }
+      
+      .react-select__menu {
+        background: ${props => props.theme.colors.background};
+        border: 2px solid ${props => props.theme.colors.primary};
+        
+        .react-select__option {
+          color: ${props => props.theme.colors.primary};
+          
+          &:hover {
+            background: ${props => `${props.theme.colors.primary}22`};
+          }
+        }
+      }
+    }
+
+    .status-indicator {
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 2px solid ${props => props.theme.colors.primary};
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: ${props => props.theme.colors.background};
+      
+      &.connected {
+        color: ${props => props.theme.colors.primary};
+      }
+    }
+  }
+
+  .debug-content {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: left;
+
+    .debug-line {
+      display: flex;
+      gap: 10px;
+      padding: 4px 0;
+      
+      .timestamp {
+        color: ${props => props.theme.colors.primary};
+        opacity: 0.8;
+        min-width: 80px;
+      }
+      
+      .message {
+        flex: 1;
+        white-space: pre-wrap;
+        word-break: break-word;
+        
+        &.server {
+          opacity: 0.7;
+        }
+        
+        &.client {
+          opacity: 1;
+        }
+      }
+    }
+  }
+`;
+
+interface FilterOption {
+  value: 'none' | 'client' | 'server';
+  label: string;
+}
+
+const filterOptions: FilterOption[] = [
+  { value: "none", label: "All Messages" },
+  { value: "client", label: "Client Messages" },
+  { value: "server", label: "Server Messages" },
 ];
 
 export default function SidePanel() {
   const { connected, client } = useLiveAPIContext();
-  const [open, setOpen] = useState(true);
-  const loggerRef = useRef<HTMLDivElement>(null);
-  const loggerLastHeightRef = useRef<number>(-1);
-  const { log, logs } = useLoggerStore();
+  const [selectedFilter, setSelectedFilter] = useState<FilterOption>(filterOptions[0]);
+  const { logs, log } = useLoggerStore();
+  const debugContentRef = useRef<HTMLDivElement>(null);
 
-  const [textInput, setTextInput] = useState("");
-  const [selectedOption, setSelectedOption] = useState<{
-    value: string;
-    label: string;
-  } | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  //scroll the log to the bottom when new logs come in
-  useEffect(() => {
-    if (loggerRef.current) {
-      const el = loggerRef.current;
-      const scrollHeight = el.scrollHeight;
-      if (scrollHeight !== loggerLastHeightRef.current) {
-        el.scrollTop = scrollHeight;
-        loggerLastHeightRef.current = scrollHeight;
-      }
-    }
-  }, [logs]);
-
-  // listen for log events and store them
+  // Connect to client logs
   useEffect(() => {
     client.on("log", log);
     return () => {
@@ -63,99 +142,62 @@ export default function SidePanel() {
     };
   }, [client, log]);
 
-  const handleSubmit = () => {
-    client.send([{ text: textInput }]);
-
-    setTextInput("");
-    if (inputRef.current) {
-      inputRef.current.innerText = "";
+  // Auto-scroll to bottom when new logs come in
+  useEffect(() => {
+    if (debugContentRef.current) {
+      debugContentRef.current.scrollTop = debugContentRef.current.scrollHeight;
     }
+  }, [logs]);
+
+  // Format timestamp to HH:MM:SS
+  const formatTimestamp = (date: Date) => {
+    return date.toLocaleTimeString('en-US', { 
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  // Format message based on its type
+  const formatMessage = (message: StreamingLog['message']) => {
+    if (typeof message === 'string') return message;
+    return JSON.stringify(message, null, 2);
   };
 
   return (
-    <div className={`side-panel ${open ? "open" : ""}`}>
-      <header className="top">
-        <h2>Console</h2>
-        {open ? (
-          <button className="opener" onClick={() => setOpen(false)}>
-            <RiSidebarFoldLine color="#b4b8bb" />
-          </button>
-        ) : (
-          <button className="opener" onClick={() => setOpen(true)}>
-            <RiSidebarUnfoldLine color="#b4b8bb" />
-          </button>
-        )}
-      </header>
-      <section className="indicators">
-        <Select
-          className="react-select"
+    <DebugContainer>
+      <div className="controls">
+        <Select<FilterOption>
+          className="filter-select"
           classNamePrefix="react-select"
-          styles={{
-            control: (baseStyles) => ({
-              ...baseStyles,
-              background: "var(--Neutral-15)",
-              color: "var(--Neutral-90)",
-              minHeight: "33px",
-              maxHeight: "33px",
-              border: 0,
-            }),
-            option: (styles, { isFocused, isSelected }) => ({
-              ...styles,
-              backgroundColor: isFocused
-                ? "var(--Neutral-30)"
-                : isSelected
-                  ? "var(--Neutral-20)"
-                  : undefined,
-            }),
-          }}
-          defaultValue={selectedOption}
+          value={selectedFilter}
           options={filterOptions}
-          onChange={(e) => {
-            setSelectedOption(e);
-          }}
+          onChange={(option) => setSelectedFilter(option || filterOptions[0])}
         />
-        <div className={cn("streaming-indicator", { connected })}>
-          {connected
-            ? `🔵${open ? " Streaming" : ""}`
-            : `⏸️${open ? " Paused" : ""}`}
-        </div>
-      </section>
-      <div className="side-panel-container" ref={loggerRef}>
-        <Logger
-          filter={(selectedOption?.value as LoggerFilterType) || "none"}
-        />
-      </div>
-      <div className={cn("input-container", { disabled: !connected })}>
-        <div className="input-content">
-          <textarea
-            className="input-area"
-            ref={inputRef}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                handleSubmit();
-              }
-            }}
-            onChange={(e) => setTextInput(e.target.value)}
-            value={textInput}
-          ></textarea>
-          <span
-            className={cn("input-content-placeholder", {
-              hidden: textInput.length,
-            })}
-          >
-            Type&nbsp;something...
-          </span>
-
-          <button
-            className="send-button material-symbols-outlined filled"
-            onClick={handleSubmit}
-          >
-            send
-          </button>
+        <div className={cn("status-indicator", { connected })}>
+          {connected ? "🟢 Connected" : "⏸️ Paused"}
         </div>
       </div>
-    </div>
+      <div className="debug-content" ref={debugContentRef}>
+        {logs
+          .filter((log: StreamingLog) => {
+            if (selectedFilter.value === "none") return true;
+            return log.type.startsWith(selectedFilter.value);
+          })
+          .map((log: StreamingLog, index: number) => (
+            <div key={index} className="debug-line">
+              <span className="timestamp">{formatTimestamp(log.date)}</span>
+              <span className={cn("message", {
+                server: log.type.startsWith('server'),
+                client: log.type.startsWith('client')
+              })}>
+                {formatMessage(log.message)}
+                {log.count && log.count > 1 ? ` (${log.count}x)` : ''}
+              </span>
+            </div>
+          ))}
+      </div>
+    </DebugContainer>
   );
 }
