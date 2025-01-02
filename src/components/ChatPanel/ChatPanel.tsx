@@ -8,108 +8,157 @@ const ChatContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 20px;
-  padding: 16px;
-  color: ${props => props.theme.colors.primary};
+  position: relative;
+  background: ${props => props.theme.colors.background};
+  color: ${props => props.theme.colors.secondary};
+  font-family: ${props => props.theme.fonts.mono};
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      ${props => props.theme.colors.secondary}03 0px,
+      ${props => props.theme.colors.secondary}03 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
 `;
 
 const MessagesContainer = styled.div`
   flex: 1;
   overflow-y: auto;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-right: 10px;
+  position: relative;
+  z-index: 2;
 
   &::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
   }
 
   &::-webkit-scrollbar-track {
     background: ${props => props.theme.colors.background};
-    border-radius: 4px;
+    border: 1px solid ${props => props.theme.colors.secondary}22;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.colors.primary}33;
+    background: ${props => props.theme.colors.secondary}44;
     border-radius: 4px;
     
     &:hover {
-      background: ${props => props.theme.colors.primary}66;
+      background: ${props => props.theme.colors.secondary}66;
     }
   }
 `;
 
-const Message = styled.div<{ isUser: boolean }>`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: left;
-  max-width: 80%;
-  align-self: ${props => props.isUser ? 'flex-end' : 'flex-start'};
-
-  .message-header {
-    font-size: 12px;
-    opacity: 0.8;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: ${props => props.theme.colors.primary};
-  }
-
-  .message-content {
-    background: ${props => props.isUser ? 
-      `${props.theme.colors.primary}11` : 
-      `${props.theme.colors.primary}22`};
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid ${props => `${props.theme.colors.primary}33`};
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: 'Space Mono', monospace;
-    position: relative;
+const Message = styled.div<{ $isUser?: boolean }>`
+  padding: 12px 16px;
+  border-radius: 4px;
+  position: relative;
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 85%;
+  align-self: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
+  
+  ${props => props.$isUser ? `
+    background: ${props.theme.colors.accent}11;
+    border: 1px solid ${props.theme.colors.accent}44;
+    color: ${props.theme.colors.accent};
+    box-shadow: 0 0 20px ${props.theme.colors.accent}22;
     
     &::before {
-      content: '';
+      content: 'USER';
       position: absolute;
-      top: 0;
-      ${props => props.isUser ? 'right: -1px' : 'left: -1px'};
-      width: 2px;
-      height: 100%;
-      background: ${props => props.theme.colors.primary}66;
-      border-radius: 1px;
+      top: -18px;
+      right: 0;
+      font-size: 10px;
+      color: ${props.theme.colors.accent};
+      opacity: 0.7;
+      letter-spacing: 1px;
     }
+  ` : `
+    background: ${props.theme.colors.secondary}11;
+    border: 1px solid ${props.theme.colors.secondary}44;
+    color: ${props.theme.colors.secondary};
+    box-shadow: 0 0 20px ${props.theme.colors.secondary}22;
+    
+    &::before {
+      content: 'GEMINI';
+      position: absolute;
+      top: -18px;
+      left: 0;
+      font-size: 10px;
+      color: ${props.theme.colors.secondary};
+      opacity: 0.7;
+      letter-spacing: 1px;
+    }
+  `}
+
+  &:hover {
+    border-color: ${props => props.$isUser ? 
+      `${props.theme.colors.accent}88` : 
+      `${props.theme.colors.secondary}88`
+    };
+    box-shadow: 0 0 30px ${props => props.$isUser ? 
+      `${props.theme.colors.accent}33` : 
+      `${props.theme.colors.secondary}33`
+    };
   }
 `;
 
 const InputContainer = styled.div`
+  padding: 16px;
+  background: ${props => props.theme.colors.surface};
+  border-top: 1px solid ${props => props.theme.colors.primary}44;
   position: relative;
+  z-index: 2;
   
-  input {
-    width: 100%;
-    height: 40px;
-    background: ${props => props.theme.colors.background};
-    border: 1px solid ${props => props.theme.colors.primary};
-    border-radius: 4px;
-    color: ${props => props.theme.colors.primary};
-    padding: 0 15px;
-    font-family: 'Space Mono', monospace;
-    font-size: 14px;
-    
-    &:focus {
-      outline: none;
-      border-color: ${props => props.theme.colors.primary};
-      box-shadow: 0 0 10px ${props => `${props.theme.colors.primary}33`};
-    }
-    
-    &::placeholder {
-      color: ${props => props.theme.colors.primary};
-      opacity: 0.5;
-    }
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: ${props => props.theme.colors.primary};
+    opacity: 0.2;
+    box-shadow: 0 0 10px ${props => props.theme.colors.primary}66;
+  }
+`;
 
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+const Input = styled.input`
+  width: 100%;
+  height: 40px;
+  background: ${props => props.theme.colors.background};
+  border: 1px solid ${props => props.theme.colors.secondary}44;
+  border-radius: 4px;
+  color: ${props => props.theme.colors.secondary};
+  padding: 0 16px;
+  font-family: ${props => props.theme.fonts.mono};
+  font-size: 14px;
+  transition: all 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.colors.secondary}88;
+    box-shadow: 0 0 20px ${props => props.theme.colors.secondary}22;
+  }
+
+  &::placeholder {
+    color: ${props => props.theme.colors.secondary}66;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
@@ -194,20 +243,15 @@ export default function ChatPanel() {
     <ChatContainer>
       <MessagesContainer>
         {messages.map((message, index) => (
-          <Message key={index} isUser={message.role === 'user'}>
-            <div className="message-header">
-              {message.role === 'user' ? 'You' : 'Gemini'}
-            </div>
-            <div className="message-content">
-              {message.content}
-            </div>
+          <Message key={index} $isUser={message.role === 'user'}>
+            {message.content}
           </Message>
         ))}
         <div ref={messagesEndRef} />
       </MessagesContainer>
       <form onSubmit={handleSubmit}>
         <InputContainer>
-          <input
+          <Input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}

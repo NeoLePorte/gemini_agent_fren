@@ -1,150 +1,156 @@
 import styled from 'styled-components';
 import React, { RefObject } from 'react';
 
-const TerminalContainer = styled.div`
-  display: grid;
-  grid-template-rows: 1fr auto;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 20px;
-  height: 100vh;
-  background: ${props => props.theme.colors.background};
-  color: ${props => props.theme.colors.primary};
-  font-family: 'Space Mono', monospace;
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   position: relative;
+  gap: 2px;
+  padding: 2px;
+  background: ${props => props.theme.colors.background};
 
   &::before {
     content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: 
-      linear-gradient(
-        0deg,
-        transparent 0%,
-        ${props => props.theme.colors.primary}11 50%,
-        transparent 100%
-      );
+    position: fixed;
+    inset: 0;
+    background: ${props => props.theme.effects.scanlines};
     pointer-events: none;
+    opacity: 0.3;
+    z-index: 1;
+  }
+
+  &::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: ${props => props.theme.effects.noise};
+    pointer-events: none;
+    opacity: 0.2;
     z-index: 1;
   }
 `;
 
-const ChatSection = styled.div`
-  border: 1px solid ${props => props.theme.colors.primary}44;
-  border-radius: 4px;
-  background: ${props => props.theme.colors.background}dd;
-  box-shadow: 0 0 20px ${props => props.theme.colors.primary}22;
-  overflow: hidden;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-
-  &::before {
-    content: 'TERMINAL OUTPUT';
-    position: absolute;
-    top: 8px;
-    left: 12px;
-    font-size: 12px;
-    color: ${props => props.theme.colors.primary};
-    opacity: 0.7;
-    letter-spacing: 1px;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 32px;
-    background: ${props => props.theme.colors.primary}11;
-    border-bottom: 1px solid ${props => props.theme.colors.primary}22;
-  }
-`;
-
-const MediaSection = styled.div`
-  border: 1px solid ${props => props.theme.colors.primary}44;
-  border-radius: 4px;
-  background: ${props => props.theme.colors.background}dd;
-  box-shadow: 0 0 20px ${props => props.theme.colors.primary}22;
-  overflow: hidden;
-  position: relative;
+const MainContent = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 12px;
-  padding: 40px 12px 12px 12px;
-
-  &::before {
-    content: 'MEDIA OUTPUT';
-    position: absolute;
-    top: 8px;
-    left: 12px;
-    font-size: 12px;
-    color: ${props => props.theme.colors.primary};
-    opacity: 0.7;
-    letter-spacing: 1px;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 32px;
-    background: ${props => props.theme.colors.primary}11;
-    border-bottom: 1px solid ${props => props.theme.colors.primary}22;
-  }
+  grid-template-columns: 1fr 400px;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  padding: 4px;
 `;
 
-const ControlSection = styled.div`
-  grid-column: 1 / -1;
-  border: 1px solid ${props => props.theme.colors.primary}44;
-  border-radius: 4px;
-  background: ${props => props.theme.colors.background}dd;
-  box-shadow: 0 0 20px ${props => props.theme.colors.primary}22;
-  padding: 12px;
-  position: relative;
-
-  &::before {
-    content: 'SYSTEM CONTROLS';
-    position: absolute;
-    top: 8px;
-    left: 12px;
-    font-size: 12px;
-    color: ${props => props.theme.colors.primary};
-    opacity: 0.7;
-    letter-spacing: 1px;
-  }
-`;
-
-const MediaCell = styled.div`
-  border: 1px solid ${props => props.theme.colors.primary}44;
-  border-radius: 4px;
-  background: ${props => props.theme.colors.background};
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+const ChatPanel = styled.div`
+  background: ${props => props.theme.colors.surface};
+  border: 2px solid ${props => props.theme.colors.secondary}66;
+  box-shadow: 
+    inset 0 0 30px ${props => props.theme.colors.secondary}22,
+    0 0 10px ${props => props.theme.colors.secondary}22;
   position: relative;
   overflow: hidden;
+  border-radius: 4px;
 
   &::before {
     content: '';
     position: absolute;
     inset: 0;
-    border: 1px solid ${props => props.theme.colors.primary}22;
-    border-radius: 4px;
+    background: linear-gradient(
+      135deg,
+      ${props => props.theme.colors.secondary}11 25%,
+      transparent 25%,
+      transparent 50%,
+      ${props => props.theme.colors.secondary}11 50%,
+      ${props => props.theme.colors.secondary}11 75%,
+      transparent 75%
+    );
+    background-size: 12px 12px;
+    opacity: 0.2;
   }
+`;
 
-  img, video {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+const MediaPanel = styled.div`
+  background: ${props => props.theme.colors.surface};
+  border: 2px solid ${props => props.theme.colors.accent}66;
+  box-shadow: 
+    inset 0 0 20px ${props => props.theme.colors.accent}22,
+    0 0 10px ${props => props.theme.colors.accent}22;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      45deg,
+      ${props => props.theme.colors.accent}11 25%,
+      transparent 25%,
+      transparent 50%,
+      ${props => props.theme.colors.accent}11 50%,
+      ${props => props.theme.colors.accent}11 75%,
+      transparent 75%
+    );
+    background-size: 8px 8px;
+    opacity: 0.2;
+  }
+`;
+
+const ControlPanel = styled.div`
+  height: 180px;
+  background: ${props => props.theme.colors.surface};
+  border: 2px solid ${props => props.theme.colors.primary}66;
+  box-shadow: 
+    inset 0 0 25px ${props => props.theme.colors.primary}22,
+    0 0 10px ${props => props.theme.colors.primary}22;
+  position: relative;
+  overflow: hidden;
+  margin: 4px;
+  border-radius: 4px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      -45deg,
+      ${props => props.theme.colors.primary}11 25%,
+      transparent 25%,
+      transparent 50%,
+      ${props => props.theme.colors.primary}11 50%,
+      ${props => props.theme.colors.primary}11 75%,
+      transparent 75%
+    );
+    background-size: 10px 10px;
+    opacity: 0.2;
+  }
+`;
+
+const SectionLabel = styled.div`
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-size: 14px;
+  font-weight: bold;
+  color: ${props => props.theme.colors.text.accent};
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 
+    0 0 10px ${props => props.theme.colors.secondary},
+    0 0 20px ${props => props.theme.colors.secondary}66,
+    0 0 30px ${props => props.theme.colors.secondary}33;
+  z-index: 2;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    height: 1px;
+    background: ${props => props.theme.colors.text.accent};
+    box-shadow: 0 0 10px ${props => props.theme.colors.secondary};
+    opacity: 0.5;
   }
 `;
 
@@ -157,28 +163,38 @@ interface TerminalLayoutProps {
 }
 
 export default function TerminalLayout({ 
-  debugPanel,
   chatPanel,
   controlPanel,
   videoRef,
   volume 
 }: TerminalLayoutProps) {
   return (
-    <TerminalContainer>
-      <ChatSection>
-        {chatPanel}
-      </ChatSection>
+    <Container>
+      <MainContent>
+        <ChatPanel>
+          <SectionLabel>TERMINAL OUTPUT</SectionLabel>
+          {chatPanel}
+        </ChatPanel>
+        
+        <MediaPanel>
+          <SectionLabel>MEDIA FEED</SectionLabel>
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            muted 
+            style={{ 
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }} 
+          />
+        </MediaPanel>
+      </MainContent>
       
-      <MediaSection>
-        {/* Media cells for images, videos, graphs etc */}
-        {Array(9).fill(null).map((_, i) => (
-          <MediaCell key={i} />
-        ))}
-      </MediaSection>
-      
-      <ControlSection>
+      <ControlPanel>
         {controlPanel}
-      </ControlSection>
-    </TerminalContainer>
+      </ControlPanel>
+    </Container>
   );
 }

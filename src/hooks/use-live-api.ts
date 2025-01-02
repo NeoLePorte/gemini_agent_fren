@@ -57,10 +57,11 @@ export function useLiveAPI({
         audioStreamerRef.current = new AudioStreamer(audioCtx);
         audioStreamerRef.current
           .addWorklet<any>("vumeter-out", VolMeterWorket, (ev: any) => {
+            console.log('Audio volume update:', ev.data.volume);
             setVolume(ev.data.volume);
           })
           .then(() => {
-            // Successfully added worklet
+            console.log('Volume meter worklet added successfully');
           });
       });
     }

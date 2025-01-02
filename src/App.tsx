@@ -35,37 +35,47 @@ const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeSer
 // Define theme
 const theme = {
   colors: {
-    primary: '#00ff00',
-    secondary: '#ff00ff',
-    accent: '#00ffff',
-    warning: '#ff6600',
-    background: '#000000',
-    surface: '#111111',
+    primary: '#00ff66',     // Neon green (for system controls)
+    secondary: '#ff3366',   // Neon pink (for terminal/chat)
+    accent: '#00ccff',      // Neon blue (for media feed)
+    warning: '#ffae00',     // Amber (for warnings/alerts)
+    chartGreen: '#33ff99',  // Bright mint (for charts/viz)
+    chartRed: '#ff3366',    // Hot pink (for charts/viz)
+    chartBlue: '#00ccff',   // Cyan (for charts/viz)
+    background: '#0a0b16',  // Deep navy blue
+    surface: '#141829',     // Lighter navy blue
     text: {
-      primary: '#00ff00',
-      secondary: '#cccccc',
-      accent: '#ffffff'
+      primary: '#00ff66',   // Neon green
+      secondary: '#ff3366', // Neon pink
+      accent: '#ffffff',    // Pure white
+      warning: '#ffae00'    // Amber
     }
   },
   effects: {
-    glow: (color: string) => `0 0 10px ${color}44, 0 0 20px ${color}22, 0 0 30px ${color}11`,
+    glow: (color: string) => `0 0 10px ${color}cc, 0 0 20px ${color}66, 0 0 30px ${color}33`,
     scanlines: `
       linear-gradient(
         to bottom,
         transparent 50%,
-        rgba(0, 255, 0, 0.02) 50%
+        rgba(20, 24, 41, 0.8) 50%
       )
     `,
     noise: `
       repeating-radial-gradient(
-        rgba(0, 255, 0, 0.03) 100px,
+        rgba(0, 204, 255, 0.05) 100px,
         transparent 100px,
         transparent 200px
       )
+    `,
+    chartGlow: `0 0 15px rgba(51, 255, 153, 0.5)`,
+    terminalShadow: `
+      0 0 10px rgba(255, 51, 102, 0.3),
+      0 0 20px rgba(255, 51, 102, 0.2),
+      0 0 30px rgba(255, 51, 102, 0.1)
     `
   },
   fonts: {
-    mono: "'Space Mono', monospace",
+    mono: "'Share Tech Mono', monospace",
     display: "'Share Tech Mono', monospace"
   }
 };
@@ -82,7 +92,13 @@ function AppContent() {
   }, []);
 
   return (
-    <>
+    <div style={{ 
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
       <TerminalLayout
         debugPanel={<DebugPanel />}
         chatPanel={<ChatPanel />}
@@ -100,7 +116,12 @@ function AppContent() {
       />
       
       {showDebug && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
+        <div style={{ 
+          position: 'fixed', 
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 9999
+        }}>
           <div style={{ pointerEvents: 'auto' }}>
             <FloatingDebugWindow 
               onClose={() => setShowDebug(false)}
@@ -111,14 +132,22 @@ function AppContent() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
 function App() {
   return (
     <ThemeProvider theme={theme}>
-      <div className="App terminal-screen" style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}>
+      <div 
+        className="App terminal-screen" 
+        style={{ 
+          position: 'fixed',
+          inset: 0,
+          background: theme.colors.background,
+          overflow: 'hidden'
+        }}
+      >
         <LiveAPIProvider url={uri} apiKey={API_KEY}>
           <AppContent />
         </LiveAPIProvider>

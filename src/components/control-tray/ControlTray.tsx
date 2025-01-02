@@ -96,43 +96,56 @@ const AudioPulseLabel = styled.span`
 const DisplayPanel = styled.div<{ isRight?: boolean }>`
   width: 320px;
   height: 180px;
-  border: 1px solid #00ff0044;
+  border: 1px solid ${props => props.theme.colors.primary}44;
   border-radius: 4px;
   overflow: hidden;
   position: relative;
-  background: #00ff0008;
-  box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+  background: ${props => props.theme.colors.background}dd;
+  box-shadow: 0 0 20px ${props => props.theme.colors.primary}22;
 
   &::before {
+    content: ${props => props.isRight ? "'GEMINI'" : "'FEED'"};
+    position: absolute;
+    top: 4px;
+    ${props => props.isRight ? 'right: 8px' : 'left: 8px'};
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.8;
+    color: ${props => props.theme.colors.primary};
+    z-index: 2;
+  }
+
+  &::after {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     height: 24px;
-    background: #00ff0011;
-    border-bottom: 1px solid #00ff0022;
+    background: ${props => props.theme.colors.background}dd;
+    border-bottom: 1px solid ${props => props.theme.colors.primary}22;
+    z-index: 1;
   }
 
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-`;
-
-const GeminiPortrait = styled(DisplayPanel)`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  
   .audio-viz-container {
-    flex: 1;
+    position: absolute;
+    inset: 24px 0 0 0;
     width: 100%;
+    height: calc(100% - 24px);
+    z-index: 0;
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
+
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
   }
 
   .pulse-container {
@@ -142,6 +155,7 @@ const GeminiPortrait = styled(DisplayPanel)`
     right: 0;
     display: flex;
     justify-content: center;
+    z-index: 2;
   }
 `;
 
@@ -160,35 +174,148 @@ const DisplayTitle = styled.div<{ isRight?: boolean }>`
 const MediaSection = styled.div`
   display: grid;
   grid-template-columns: 320px 1fr 320px;
-  width: 100%;
   gap: 20px;
-  align-items: center;
+  width: calc(100% - 40px);
+  max-width: 1600px;
+  margin: 0 auto;
+  padding-top: 24px;
+`;
+
+const VideoFrame = styled.div`
+  position: relative;
+  aspect-ratio: 16/9;
+  background: ${props => props.theme.colors.background};
+  border: 2px solid ${props => props.theme.colors.chartGreen}44;
+  box-shadow: inset 0 0 20px ${props => props.theme.colors.chartGreen}22;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      45deg,
+      ${props => props.theme.colors.chartGreen}11 25%,
+      transparent 25%,
+      transparent 50%,
+      ${props => props.theme.colors.chartGreen}11 50%,
+      ${props => props.theme.colors.chartGreen}11 75%,
+      transparent 75%
+    );
+    background-size: 8px 8px;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .label {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    font-size: 12px;
+    color: ${props => props.theme.colors.chartGreen};
+    opacity: 0.8;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px ${props => props.theme.colors.chartGreen}66;
+    z-index: 2;
+  }
+`;
+
+const ButtonGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+`;
+
+const ControlButton = styled.button<{ $active?: boolean }>`
+  background: ${props => props.$active ? 
+    props.theme.colors.chartGreen + '22' : 
+    props.theme.colors.background
+  };
+  border: 2px solid ${props => props.$active ?
+    props.theme.colors.chartGreen + '88' :
+    props.theme.colors.chartGreen + '44'
+  };
+  color: ${props => props.theme.colors.chartGreen};
+  padding: 8px 16px;
+  font-family: ${props => props.theme.fonts.mono};
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      45deg,
+      ${props => props.theme.colors.chartGreen}11 25%,
+      transparent 25%,
+      transparent 50%,
+      ${props => props.theme.colors.chartGreen}11 50%,
+      ${props => props.theme.colors.chartGreen}11 75%,
+      transparent 75%
+    );
+    background-size: 8px 8px;
+    opacity: ${props => props.$active ? 0.3 : 0.1};
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover {
+    border-color: ${props => props.theme.colors.chartGreen}88;
+    box-shadow: 
+      0 0 20px ${props => props.theme.colors.chartGreen}33,
+      inset 0 0 10px ${props => props.theme.colors.chartGreen}22;
+    
+    &::before {
+      opacity: 0.3;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const ControlsContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  min-width: 320px;
-  height: 180px;
-  border: 1px solid #00ff0044;
-  border-radius: 4px;
-  background: #00ff0008;
-  box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+  gap: 20px;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
   position: relative;
+  z-index: 2;
 
   &::before {
-    content: '';
+    content: 'SYSTEM CONTROLS';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 24px;
-    background: #00ff0011;
-    border-bottom: 1px solid #00ff0022;
+    top: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px;
+    font-weight: bold;
+    color: ${props => props.theme.colors.chartGreen};
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 
+      0 0 10px ${props => props.theme.colors.chartGreen},
+      0 0 20px ${props => props.theme.colors.chartGreen}66;
+    z-index: 2;
   }
 `;
 
@@ -197,10 +324,12 @@ const MainControls = styled.div`
   gap: 12px;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: 16px;
   border-radius: 8px;
-  background: ${props => props.theme.colors.primary}11;
+  background: ${props => props.theme.colors.background};
   border: 1px solid ${props => props.theme.colors.primary}22;
+  position: relative;
+  z-index: 2;
 `;
 
 const ActionNav = styled.nav`
@@ -423,20 +552,22 @@ function ControlTray({
       <canvas style={{ display: "none" }} ref={renderCanvasRef} />
       
       <MediaSection>
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          playsInline 
-          muted 
-          style={{ 
-            width: '320px', 
-            height: '180px', 
-            objectFit: 'cover',
-            borderRadius: '4px',
-            border: `1px solid ${theme.colors.primary}33`,
-            transform: 'none'
-          }} 
-        />
+        <DisplayPanel>
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            muted 
+            style={{ 
+              width: '320px', 
+              height: '180px', 
+              objectFit: 'cover',
+              borderRadius: '4px',
+              border: `1px solid ${theme.colors.primary}33`,
+              transform: 'none'
+            }} 
+          />
+        </DisplayPanel>
 
         <ControlsContainer>
           <MainControls>
@@ -502,13 +633,14 @@ function ControlTray({
           </AudioToggle>
         </ControlsContainer>
 
-        <GeminiPortrait>
-          <DisplayTitle isRight>Gemini</DisplayTitle>
+        <DisplayPanel isRight>
           <div className="audio-viz-container">
-            <AudioViz 
-              volume={isAudioResponse ? volume : 0}
-              isActive={connected && isAudioResponse}
-            />
+            {isAudioResponse && (
+              <AudioViz 
+                volume={volume} 
+                isActive={connected && isAudioResponse}
+              />
+            )}
           </div>
           <div className="pulse-container">
             <AudioPulse 
@@ -517,7 +649,7 @@ function ControlTray({
               hover={false} 
             />
           </div>
-        </GeminiPortrait>
+        </DisplayPanel>
       </MediaSection>
     </section>
   );
