@@ -34,10 +34,35 @@ const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeSer
 // Define theme
 const theme = {
   colors: {
-    primary: '#ff6b6b',
+    primary: '#00ff00', // Neon green
+    secondary: '#ff00ff', // Neon pink
+    accent1: '#ff6600', // Neon orange
+    accent2: '#00ffff', // Neon blue
     background: '#000000',
     surface: 'rgba(20, 20, 20, 0.95)',
+    led: {
+      green: {
+        glow: '0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00',
+        dim: '0 0 5px #00ff0033'
+      },
+      pink: {
+        glow: '0 0 10px #ff00ff, 0 0 20px #ff00ff, 0 0 30px #ff00ff',
+        dim: '0 0 5px #ff00ff33'
+      },
+      orange: {
+        glow: '0 0 10px #ff6600, 0 0 20px #ff6600, 0 0 30px #ff6600',
+        dim: '0 0 5px #ff660033'
+      },
+      blue: {
+        glow: '0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff',
+        dim: '0 0 5px #00ffff33'
+      }
+    }
   },
+  effects: {
+    scanline: 'linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, 0.5) 50%)',
+    noise: 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVfgnsAAAACHRSTlMzMzMzMzMzM85JBgUAAAAJcEhZcwAADdcAAA3XAUIom3gAAAAVdEVYdFNvZnR3YXJlAGdpZjJwbmcgMi40LjKy80OWAAAAQUlEQVQ4y2NgYPj/n4GBgYmBgYGFgYGBDYgZgMQjIP4DxH+gNAOQYAYyLBiwAKCJDHgBVhOxAqK8TpQrmNgYGADxKhRQMTz1rQAAAABJRU5ErkJggg==")'
+  }
 };
 
 function AppContent() {

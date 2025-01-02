@@ -14,19 +14,71 @@
  * limitations under the License.
  */
 
+import styled, { useTheme } from 'styled-components';
 import cn from "classnames";
-import styled from "styled-components";
-
 import { memo, ReactNode, RefObject, useEffect, useRef, useState } from "react";
 import { useLiveAPIContext } from "../../contexts/LiveAPIContext";
 import { UseMediaStreamResult } from "../../hooks/use-media-stream-mux";
 import { useScreenCapture } from "../../hooks/use-screen-capture";
 import { useWebcam } from "../../hooks/use-webcam";
 import { AudioRecorder } from "../../lib/audio-recorder";
-import AudioPulse from "../audio-pulse/AudioPulse";
 import AudioViz from "../audio-viz";
 import "./control-tray.scss";
-import { useTheme } from "styled-components";
+
+const VideoFrame = styled.div`
+  width: 320px;
+  height: 180px;
+  border: 2px solid ${props => props.theme.colors.primary}44;
+  border-radius: 0;
+  overflow: hidden;
+  position: relative;
+  background: #000;
+  clip-path: polygon(
+    0 10px,
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 calc(100% - 10px)
+  );
+
+  &::before {
+    content: 'FEED';
+    position: absolute;
+    top: 4px;
+    left: 8px;
+    color: ${props => props.theme.colors.primary};
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-shadow: ${props => props.theme.colors.led.green.glow};
+    z-index: 2;
+    transform: skew(-10deg);
+  }
+
+  video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(1.2) contrast(1.1) saturate(1.2);
+    z-index: 1;
+  }
+`;
+
+const GeminiFrame = styled(VideoFrame)`
+  border-color: ${props => props.theme.colors.secondary}44;
+  background: linear-gradient(135deg, #000 0%, rgba(255, 0, 255, 0.1) 100%);
+
+  &::before {
+    content: 'GEMINI';
+    color: ${props => props.theme.colors.secondary};
+    text-shadow: ${props => props.theme.colors.led.pink.glow};
+  }
+`;
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
@@ -43,20 +95,53 @@ type MediaStreamButtonProps = {
   stop: () => any;
 };
 
-/**
- * button used for triggering webcam or screen-capture
- */
+const ActionButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  border: 1px solid ${props => props.theme.colors.primary}44;
+  background: ${props => props.theme.colors.background};
+  color: ${props => props.theme.colors.primary};
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &.mic-button {
+    background: ${props => props.theme.colors.primary}22;
+  }
+
+  &.connect-toggle {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+    
+    &.connected {
+      background: ${props => props.theme.colors.primary};
+      color: ${props => props.theme.colors.background};
+    }
+  }
+`;
+
+const StreamButton = styled(ActionButton)`
+  &.streaming {
+    background: ${props => props.theme.colors.primary};
+    color: ${props => props.theme.colors.background};
+  }
+`;
+
 const MediaStreamButton = memo(
   ({ isStreaming, onIcon, offIcon, start, stop }: MediaStreamButtonProps) =>
     isStreaming ? (
-      <button className="action-button" onClick={stop}>
+      <StreamButton className="streaming" onClick={stop}>
         <span className="material-symbols-outlined">{onIcon}</span>
-      </button>
+      </StreamButton>
     ) : (
-      <button className="action-button" onClick={start}>
+      <StreamButton onClick={start}>
         <span className="material-symbols-outlined">{offIcon}</span>
-      </button>
-    ),
+      </StreamButton>
+    )
 );
 
 const AudioToggle = styled.button<{ active: boolean }>`
@@ -158,8 +243,8 @@ const DisplayTitle = styled.div<{ isRight?: boolean }>`
 const MediaSection = styled.div`
   display: grid;
   grid-template-columns: 320px 1fr 320px;
-  width: 100%;
   gap: 20px;
+  width: 100%;
   align-items: center;
 `;
 
@@ -172,22 +257,20 @@ const ControlsContainer = styled.div`
   padding: 16px;
   min-width: 320px;
   height: 180px;
-  border: 1px solid #00ff0044;
-  border-radius: 4px;
-  background: #00ff0008;
-  box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+  border: 2px solid ${props => props.theme.colors.accent1}44;
+  border-radius: 0;
+  background: linear-gradient(135deg, #000 0%, rgba(255, 102, 0, 0.1) 100%);
   position: relative;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 24px;
-    background: #00ff0011;
-    border-bottom: 1px solid #00ff0022;
-  }
+  clip-path: polygon(
+    0 10px,
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 calc(100% - 10px)
+  );
 `;
 
 const MainControls = styled.div`
@@ -216,58 +299,6 @@ const ActionNav = styled.nav`
   }
 `;
 
-const ActionButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-  border: 1px solid ${props => props.theme.colors.primary}44;
-  background: ${props => props.theme.colors.background};
-  color: ${props => props.theme.colors.primary};
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: linear-gradient(
-      45deg,
-      transparent,
-      ${props => props.theme.colors.primary}11,
-      transparent
-    );
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-  }
-
-  &:hover::before {
-    transform: translateX(0);
-  }
-
-  &.mic-button {
-    background: ${props => props.theme.colors.primary}22;
-  }
-
-  &.connect-toggle {
-    width: 48px;
-    height: 48px;
-    border-radius: 24px;
-    
-    &.connected {
-      background: ${props => props.theme.colors.primary};
-      color: ${props => props.theme.colors.background};
-    }
-  }
-`;
-
 function ControlTray({
   videoRef,
   children,
@@ -276,8 +307,7 @@ function ControlTray({
 }: ControlTrayProps) {
   const theme = useTheme();
   const videoStreams = [useWebcam(), useScreenCapture()];
-  const [activeVideoStream, setActiveVideoStream] =
-    useState<MediaStream | null>(null);
+  const [activeVideoStream, setActiveVideoStream] = useState<MediaStream | null>(null);
   const [webcam, screenCapture] = videoStreams;
   const [inVolume, setInVolume] = useState(0);
   const [audioRecorder] = useState(() => new AudioRecorder());
@@ -286,21 +316,16 @@ function ControlTray({
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
 
-  const { client, connected, connect, disconnect, volume, setConfig } =
-    useLiveAPIContext();
+  const { client, connected, connect, disconnect, volume, setConfig } = useLiveAPIContext();
 
+  // Focus connect button when disconnected
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
       connectButtonRef.current.focus();
     }
   }, [connected]);
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--volume",
-      `${Math.max(5, Math.min(inVolume * 200, 8))}px`,
-    );
-  }, [inVolume]);
 
+  // Handle audio recording
   useEffect(() => {
     const onData = (base64: string) => {
       client.sendRealtimeInput([
@@ -320,54 +345,97 @@ function ControlTray({
     };
   }, [connected, client, muted, audioRecorder]);
 
+  // Handle video stream
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = activeVideoStream;
-    }
+    if (!videoRef.current || !activeVideoStream) return;
 
+    const video = videoRef.current;
+    video.srcObject = activeVideoStream;
+    video.style.display = 'block'; // Ensure video is visible
+    
+    // Play the video
+    video.play().catch(err => {
+      console.error('Error playing video:', err);
+    });
+
+    onVideoStreamChange(activeVideoStream);
+
+    // Handle video frame sending
     let timeoutId = -1;
+    const sendVideoFrame = () => {
+      if (!videoRef.current || !renderCanvasRef.current || !connected) return;
 
-    function sendVideoFrame() {
-      const video = videoRef.current;
       const canvas = renderCanvasRef.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-      if (!video || !canvas) {
-        return;
-      }
-
-      const ctx = canvas.getContext("2d")!;
+      // Set canvas dimensions to match video
       canvas.width = video.videoWidth * 0.25;
       canvas.height = video.videoHeight * 0.25;
-      if (canvas.width + canvas.height > 0) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL("image/jpeg", 1.0);
-        const data = base64.slice(base64.indexOf(",") + 1, Infinity);
-        client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
+
+      // Only send frame if we have valid dimensions
+      if (canvas.width > 0 && canvas.height > 0) {
+        try {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const base64 = canvas.toDataURL("image/jpeg", 0.8);
+          const data = base64.substring(base64.indexOf(",") + 1);
+          client.sendRealtimeInput([{ mimeType: "image/jpeg", data }]);
+        } catch (err) {
+          console.error('Error sending video frame:', err);
+        }
       }
+
+      // Schedule next frame
       if (connected) {
         timeoutId = window.setTimeout(sendVideoFrame, 1000 / 0.5);
       }
-    }
-    if (connected && activeVideoStream !== null) {
+    };
+
+    // Start sending frames if connected
+    if (connected) {
       requestAnimationFrame(sendVideoFrame);
     }
+
+    // Cleanup
     return () => {
-      clearTimeout(timeoutId);
+      if (timeoutId !== -1) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [connected, activeVideoStream, client, videoRef]);
+  }, [activeVideoStream, connected, client, onVideoStreamChange]);
 
-  //handler for swapping from one video-stream to the next
+  // Handler for swapping video streams
   const changeStreams = (next?: UseMediaStreamResult) => async () => {
-    if (next) {
-      const mediaStream = await next.start();
-      setActiveVideoStream(mediaStream);
-      onVideoStreamChange(mediaStream);
-    } else {
-      setActiveVideoStream(null);
-      onVideoStreamChange(null);
-    }
+    try {
+      // Stop current stream
+      if (activeVideoStream) {
+        activeVideoStream.getTracks().forEach(track => track.stop());
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+        setActiveVideoStream(null);
+        onVideoStreamChange(null);
+      }
 
-    videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
+      // Start new stream
+      if (next) {
+        const mediaStream = await next.start();
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          // Ensure video plays
+          await videoRef.current.play().catch(console.error);
+        }
+        setActiveVideoStream(mediaStream);
+        onVideoStreamChange(mediaStream);
+      }
+
+      // Stop other streams
+      videoStreams
+        .filter(msr => msr !== next)
+        .forEach(msr => msr.isStreaming && msr.stop());
+    } catch (err) {
+      console.error('Failed to change video stream:', err);
+    }
   };
 
   // Handle mode switch
@@ -414,19 +482,15 @@ function ControlTray({
       <canvas style={{ display: "none" }} ref={renderCanvasRef} />
       
       <MediaSection>
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          playsInline 
-          muted 
-          style={{ 
-            width: '320px', 
-            height: '180px', 
-            objectFit: 'cover',
-            borderRadius: '4px',
-            border: `1px solid ${theme.colors.primary}33`
-          }} 
-        />
+        <VideoFrame>
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            muted 
+            style={{ display: 'block' }}
+          />
+        </VideoFrame>
 
         <ControlsContainer>
           <MainControls>
@@ -441,20 +505,20 @@ function ControlTray({
 
             {supportsVideo && (
               <>
-                <ActionButton
-                  onClick={screenCapture.isStreaming ? changeStreams() : changeStreams(screenCapture)}
-                >
-                  <span className="material-symbols-outlined">
-                    {screenCapture.isStreaming ? "cancel_presentation" : "present_to_all"}
-                  </span>
-                </ActionButton>
-                <ActionButton
-                  onClick={webcam.isStreaming ? changeStreams() : changeStreams(webcam)}
-                >
-                  <span className="material-symbols-outlined">
-                    {webcam.isStreaming ? "videocam_off" : "videocam"}
-                  </span>
-                </ActionButton>
+                <MediaStreamButton
+                  isStreaming={screenCapture.isStreaming}
+                  onIcon="cancel_presentation"
+                  offIcon="present_to_all"
+                  start={changeStreams(screenCapture)}
+                  stop={changeStreams()}
+                />
+                <MediaStreamButton
+                  isStreaming={webcam.isStreaming}
+                  onIcon="videocam_off"
+                  offIcon="videocam"
+                  start={changeStreams(webcam)}
+                  stop={changeStreams()}
+                />
               </>
             )}
 
@@ -480,22 +544,12 @@ function ControlTray({
           </AudioToggle>
         </ControlsContainer>
 
-        <GeminiPortrait>
-          <DisplayTitle isRight>Gemini</DisplayTitle>
-          <div className="audio-viz-container">
-            <AudioViz 
-              volume={isAudioResponse ? volume : 0}
-              isActive={connected && isAudioResponse}
-            />
-          </div>
-          <div className="pulse-container">
-            <AudioPulse 
-              volume={isAudioResponse ? volume : 0} 
-              active={connected && isAudioResponse} 
-              hover={false} 
-            />
-          </div>
-        </GeminiPortrait>
+        <GeminiFrame>
+          <AudioViz 
+            volume={isAudioResponse ? volume : 0}
+            isActive={connected && isAudioResponse}
+          />
+        </GeminiFrame>
       </MediaSection>
     </section>
   );
