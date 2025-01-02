@@ -33,6 +33,8 @@ export type ControlTrayProps = {
   children?: ReactNode;
   supportsVideo: boolean;
   onVideoStreamChange?: (stream: MediaStream | null) => void;
+  onDebugToggle?: () => void;
+  debugEnabled?: boolean;
 };
 
 type MediaStreamButtonProps = {
@@ -266,6 +268,11 @@ const ActionButton = styled.button`
       color: ${props => props.theme.colors.background};
     }
   }
+
+  &.active {
+    background: ${props => props.theme.colors.primary};
+    color: ${props => props.theme.colors.background};
+  }
 `;
 
 function ControlTray({
@@ -273,6 +280,8 @@ function ControlTray({
   children,
   onVideoStreamChange = () => {},
   supportsVideo,
+  onDebugToggle,
+  debugEnabled = false,
 }: ControlTrayProps) {
   const theme = useTheme();
   const videoStreams = [useWebcam(), useScreenCapture()];
@@ -424,7 +433,8 @@ function ControlTray({
             height: '180px', 
             objectFit: 'cover',
             borderRadius: '4px',
-            border: `1px solid ${theme.colors.primary}33`
+            border: `1px solid ${theme.colors.primary}33`,
+            transform: 'none'
           }} 
         />
 
@@ -465,6 +475,18 @@ function ControlTray({
             >
               <span className="material-symbols-outlined filled">
                 {connected ? "pause" : "play_arrow"}
+              </span>
+            </ActionButton>
+
+            <ActionButton
+              onClick={() => {
+                console.log('Debug button clicked, current state:', debugEnabled);
+                onDebugToggle?.();
+              }}
+              className={cn({ active: debugEnabled })}
+            >
+              <span className="material-symbols-outlined">
+                terminal
               </span>
             </ActionButton>
           </MainControls>

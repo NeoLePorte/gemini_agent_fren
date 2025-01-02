@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import "./App.scss";
 import { LiveAPIProvider, useLiveAPIContext } from "./contexts/LiveAPIContext";
 import { DebugPanel } from "./components/debug-panel/DebugPanel";
 import ControlTray from "./components/control-tray/ControlTray";
-import { TerminalLayout } from "./components/TerminalLayout/TerminalLayout";
+import TerminalLayout from "./components/TerminalLayout/TerminalLayout";
 import ChatPanel from "./components/ChatPanel/ChatPanel";
 import { ThemeProvider } from 'styled-components';
+import FloatingDebugWindow from "./components/FloatingDebugWindow/FloatingDebugWindow";
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
@@ -34,38 +35,90 @@ const uri = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeSer
 // Define theme
 const theme = {
   colors: {
-    primary: '#ff6b6b',
+    primary: '#00ff00',
+    secondary: '#ff00ff',
+    accent: '#00ffff',
+    warning: '#ff6600',
     background: '#000000',
-    surface: 'rgba(20, 20, 20, 0.95)',
+    surface: '#111111',
+    text: {
+      primary: '#00ff00',
+      secondary: '#cccccc',
+      accent: '#ffffff'
+    }
   },
+  effects: {
+    glow: (color: string) => `0 0 10px ${color}44, 0 0 20px ${color}22, 0 0 30px ${color}11`,
+    scanlines: `
+      linear-gradient(
+        to bottom,
+        transparent 50%,
+        rgba(0, 255, 0, 0.02) 50%
+      )
+    `,
+    noise: `
+      repeating-radial-gradient(
+        rgba(0, 255, 0, 0.03) 100px,
+        transparent 100px,
+        transparent 200px
+      )
+    `
+  },
+  fonts: {
+    mono: "'Space Mono', monospace",
+    display: "'Share Tech Mono', monospace"
+  }
 };
 
 function AppContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const { volume } = useLiveAPIContext();
+  const [showDebug, setShowDebug] = useState(false);
+
+  const handleDebugToggle = useCallback(() => {
+    console.log('Toggling debug, current state:', showDebug);
+    setShowDebug(prev => !prev);
+  }, []);
 
   return (
-    <TerminalLayout
-      debugPanel={<DebugPanel />}
-      chatPanel={<ChatPanel />}
-      controlPanel={
-        <ControlTray
-          videoRef={videoRef}
-          supportsVideo={true}
-          onVideoStreamChange={setVideoStream}
-        />
-      }
-      videoRef={videoRef}
-      volume={volume}
-    />
+    <>
+      <TerminalLayout
+        debugPanel={<DebugPanel />}
+        chatPanel={<ChatPanel />}
+        controlPanel={
+          <ControlTray
+            videoRef={videoRef}
+            supportsVideo={true}
+            onVideoStreamChange={setVideoStream}
+            onDebugToggle={handleDebugToggle}
+            debugEnabled={showDebug}
+          />
+        }
+        videoRef={videoRef}
+        volume={volume}
+      />
+      
+      {showDebug && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto' }}>
+            <FloatingDebugWindow 
+              onClose={() => setShowDebug(false)}
+              defaultPosition={{ x: window.innerWidth - 350, y: 40 }}
+            >
+              <DebugPanel />
+            </FloatingDebugWindow>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
 function App() {
   return (
     <ThemeProvider theme={theme}>
-      <div className="App terminal-screen">
+      <div className="App terminal-screen" style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}>
         <LiveAPIProvider url={uri} apiKey={API_KEY}>
           <AppContent />
         </LiveAPIProvider>

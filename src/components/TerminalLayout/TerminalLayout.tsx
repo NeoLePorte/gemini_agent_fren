@@ -1,187 +1,184 @@
 import styled from 'styled-components';
-import React from 'react';
-import AudioViz from '../audio-viz';
+import React, { RefObject } from 'react';
 
 const TerminalContainer = styled.div`
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 20px;
   height: 100vh;
   background: ${props => props.theme.colors.background};
   color: ${props => props.theme.colors.primary};
   font-family: 'Space Mono', monospace;
-  padding: 20px;
-  gap: 20px;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      linear-gradient(
+        0deg,
+        transparent 0%,
+        ${props => props.theme.colors.primary}11 50%,
+        transparent 100%
+      );
+    pointer-events: none;
+    z-index: 1;
+  }
 `;
 
-const Panel = styled.div<{ 'data-title': string }>`
-  position: relative;
-  border: 2px solid ${props => props.theme.colors.primary};
+const ChatSection = styled.div`
+  border: 1px solid ${props => props.theme.colors.primary}44;
   border-radius: 4px;
-  padding: 20px;
-  background: ${props => props.theme.colors.surface};
-  
-  &:before {
-    content: attr(data-title);
+  background: ${props => props.theme.colors.background}dd;
+  box-shadow: 0 0 20px ${props => props.theme.colors.primary}22;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+
+  &::before {
+    content: 'TERMINAL OUTPUT';
     position: absolute;
-    top: -12px;
-    left: 20px;
-    background: ${props => props.theme.colors.background};
-    padding: 0 10px;
-    font-size: 14px;
-    text-transform: uppercase;
+    top: 8px;
+    left: 12px;
+    font-size: 12px;
+    color: ${props => props.theme.colors.primary};
+    opacity: 0.7;
+    letter-spacing: 1px;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: ${props => props.theme.colors.primary}11;
+    border-bottom: 1px solid ${props => props.theme.colors.primary}22;
+  }
+`;
+
+const MediaSection = styled.div`
+  border: 1px solid ${props => props.theme.colors.primary}44;
+  border-radius: 4px;
+  background: ${props => props.theme.colors.background}dd;
+  box-shadow: 0 0 20px ${props => props.theme.colors.primary}22;
+  overflow: hidden;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 12px;
+  padding: 40px 12px 12px 12px;
+
+  &::before {
+    content: 'MEDIA OUTPUT';
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    font-size: 12px;
+    color: ${props => props.theme.colors.primary};
+    opacity: 0.7;
+    letter-spacing: 1px;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: ${props => props.theme.colors.primary}11;
+    border-bottom: 1px solid ${props => props.theme.colors.primary}22;
+  }
+`;
+
+const ControlSection = styled.div`
+  grid-column: 1 / -1;
+  border: 1px solid ${props => props.theme.colors.primary}44;
+  border-radius: 4px;
+  background: ${props => props.theme.colors.background}dd;
+  box-shadow: 0 0 20px ${props => props.theme.colors.primary}22;
+  padding: 12px;
+  position: relative;
+
+  &::before {
+    content: 'SYSTEM CONTROLS';
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    font-size: 12px;
+    color: ${props => props.theme.colors.primary};
+    opacity: 0.7;
     letter-spacing: 1px;
   }
 `;
 
-const TopPanel = styled(Panel)`
-  height: 200px;
-  overflow-y: auto;
-`;
-
-const MiddlePanel = styled(Panel)`
-  flex: 1;
-  min-height: 0;
-`;
-
-const BottomPanel = styled(Panel)`
-  height: 250px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-  background: #000;
-  position: relative;
-  
-  &::after {
-    content: 'MEMORY';
-    position: absolute;
-    bottom: -10px;
-    right: 20px;
-    color: #00ff00;
-    font-size: 12px;
-    letter-spacing: 2px;
-  }
-`;
-
-const CommunicationDisplay = styled.div`
-  display: grid;
-  grid-template-columns: auto auto auto;
-  gap: 20px;
-  width: 100%;
-  padding: 20px;
-  background: rgba(0, 255, 0, 0.02);
-  border: 1px solid #00ff0033;
-  position: relative;
-  
-  &::before {
-    content: 'PTT';
-    position: absolute;
-    top: -10px;
-    left: 20px;
-    color: #00ff00;
-    font-size: 12px;
-    letter-spacing: 2px;
-    background: #000;
-    padding: 0 10px;
-  }
-`;
-
-const VideoFrame = styled.div`
-  width: 320px;
-  height: 180px;
-  border: 1px solid #00ff0044;
+const MediaCell = styled.div`
+  border: 1px solid ${props => props.theme.colors.primary}44;
   border-radius: 4px;
+  background: ${props => props.theme.colors.background};
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   overflow: hidden;
-  box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
-  position: relative;
-  
+
   &::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 24px;
-    background: #00ff0011;
-    border-bottom: 1px solid #00ff0022;
+    inset: 0;
+    border: 1px solid ${props => props.theme.colors.primary}22;
+    border-radius: 4px;
   }
-  
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-`;
 
-const ControlPanel = styled.div`
-  min-width: 320px;
-  height: 180px;
-  border: 1px solid #00ff0044;
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  background: #00ff0008;
-  position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 24px;
-    background: #00ff0011;
-    border-bottom: 1px solid #00ff0022;
+  img, video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
   }
-`;
-
-const GeminiFrame = styled(VideoFrame)`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #00ff0008;
 `;
 
 interface TerminalLayoutProps {
   debugPanel: React.ReactNode;
   chatPanel: React.ReactNode;
   controlPanel: React.ReactNode;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: RefObject<HTMLVideoElement>;
   volume: number;
 }
 
-export function TerminalLayout({
+export default function TerminalLayout({ 
   debugPanel,
   chatPanel,
   controlPanel,
   videoRef,
-  volume
+  volume 
 }: TerminalLayoutProps) {
   return (
     <TerminalContainer>
-      <TopPanel data-title="PERSONAL PARTICULARS">
-        {debugPanel}
-      </TopPanel>
-      <MiddlePanel data-title="OFF-LINE BROWSE">
+      <ChatSection>
         {chatPanel}
-      </MiddlePanel>
-      <BottomPanel data-title="MEDIA CONTROLS">
-        <CommunicationDisplay>
-          <VideoFrame>
-            <video ref={videoRef} autoPlay playsInline muted />
-          </VideoFrame>
-          <ControlPanel>
-            {controlPanel}
-          </ControlPanel>
-          <GeminiFrame>
-            <AudioViz volume={volume} isActive={true} />
-          </GeminiFrame>
-        </CommunicationDisplay>
-      </BottomPanel>
+      </ChatSection>
+      
+      <MediaSection>
+        {/* Media cells for images, videos, graphs etc */}
+        {Array(9).fill(null).map((_, i) => (
+          <MediaCell key={i} />
+        ))}
+      </MediaSection>
+      
+      <ControlSection>
+        {controlPanel}
+      </ControlSection>
     </TerminalContainer>
   );
 }
