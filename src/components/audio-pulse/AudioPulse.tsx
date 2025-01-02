@@ -19,7 +19,7 @@ import React from "react";
 import { useEffect, useRef } from "react";
 import c from "classnames";
 
-const lineCount = 3;
+const lineCount = 5;
 
 export type AudioPulseProps = {
   active: boolean;
@@ -34,18 +34,25 @@ export default function AudioPulse({ active, volume, hover }: AudioPulseProps) {
     let timeout: number | null = null;
     const update = () => {
       lines.current.forEach(
-        (line, i) =>
-        (line.style.height = `${Math.min(
-          24,
-          4 + volume * (i === 1 ? 400 : 60),
-        )}px`),
+        (line, i) => {
+          const centerOffset = Math.abs(i - Math.floor(lineCount / 2));
+          const heightMultiplier = 1 - (centerOffset * 0.2);
+          const height = Math.min(
+            24,
+            4 + volume * (i === Math.floor(lineCount / 2) ? 400 : 60) * heightMultiplier
+          );
+          line.style.height = `${height}px`;
+          line.style.transitionDelay = `${i * 50}ms`;
+        }
       );
-      timeout = window.setTimeout(update, 100);
+      timeout = window.setTimeout(update, 50);
     };
 
     update();
 
-    return () => clearTimeout((timeout as number)!);
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
   }, [volume]);
 
   return (
@@ -56,7 +63,11 @@ export default function AudioPulse({ active, volume, hover }: AudioPulseProps) {
           <div
             key={i}
             ref={(el) => (lines.current[i] = el!)}
-            style={{ animationDelay: `${i * 133}ms` }}
+            style={{ 
+              animationDelay: `${i * 100}ms`,
+              backgroundColor: active ? undefined : 'var(--color-primary)',
+              opacity: active ? 1 : 0.5
+            }}
           />
         ))}
     </div>

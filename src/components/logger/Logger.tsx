@@ -18,7 +18,7 @@ import "./logger.scss";
 
 import { Part } from "@google/generative-ai";
 import cn from "classnames";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { useLoggerStore } from "../../lib/store-logger";
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { vs2015 as dark } from "react-syntax-highlighter/dist/esm/styles/hljs";
@@ -44,6 +44,10 @@ import {
 import styled from "styled-components";
 
 const LoggerContainer = styled.div`
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  
   .log-entry {
     margin-bottom: 10px;
     
@@ -277,9 +281,34 @@ const getComponent = (log: StreamingLog): React.FC<MessageProps> => {
 export default function Logger({ filter }: LoggerProps) {
   const logs = useLoggerStore((state) => state.logs);
   const filteredLogs = logs.filter(filters[filter]);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+
+  // Handle scroll events to determine if we should auto-scroll
+  useEffect(() => {
+    const container = logContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Consider "near bottom" if within 100px of the bottom
+      const isNearBottom = scrollHeight - (scrollTop + clientHeight) < 100;
+      setShouldAutoScroll(isNearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll to bottom when new logs come in
+  useEffect(() => {
+    if (logContainerRef.current && shouldAutoScroll) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [filteredLogs, shouldAutoScroll]);
 
   return (
-    <LoggerContainer>
+    <LoggerContainer ref={logContainerRef}>
       {filteredLogs.map((log, i) => {
         const Component = getComponent(log);
         return (

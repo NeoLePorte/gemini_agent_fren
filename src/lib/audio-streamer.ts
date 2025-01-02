@@ -78,15 +78,21 @@ export class AudioStreamer {
     const float32Array = new Float32Array(chunk.length / 2);
     const dataView = new DataView(chunk.buffer);
 
+    // Add limiter to prevent clipping
+    const limit = 0.95; // Leave some headroom
     for (let i = 0; i < chunk.length / 2; i++) {
       try {
         const int16 = dataView.getInt16(i * 2, true);
-        float32Array[i] = int16 / 32768;
+        let sample = int16 / 32768;
+        // Soft clipping
+        if (sample > limit) {
+          sample = limit + (1 - limit) * Math.tanh((sample - limit) / (1 - limit));
+        } else if (sample < -limit) {
+          sample = -limit + (1 - limit) * Math.tanh((sample + limit) / (1 - limit));
+        }
+        float32Array[i] = sample;
       } catch (e) {
         console.error(e);
-        // console.log(
-        //   `dataView.length: ${dataView.byteLength},  i * 2: ${i * 2}`,
-        // );
       }
     }
 

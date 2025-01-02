@@ -16,7 +16,7 @@
 
 import { useRef, useState } from "react";
 import "./App.scss";
-import { LiveAPIProvider } from "./contexts/LiveAPIContext";
+import { LiveAPIProvider, useLiveAPIContext } from "./contexts/LiveAPIContext";
 import { DebugPanel } from "./components/debug-panel/DebugPanel";
 import ControlTray from "./components/control-tray/ControlTray";
 import { TerminalLayout } from "./components/TerminalLayout/TerminalLayout";
@@ -40,26 +40,34 @@ const theme = {
   },
 };
 
-function App() {
+function AppContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const { volume } = useLiveAPIContext();
 
+  return (
+    <TerminalLayout
+      debugPanel={<DebugPanel />}
+      chatPanel={<ChatPanel />}
+      controlPanel={
+        <ControlTray
+          videoRef={videoRef}
+          supportsVideo={true}
+          onVideoStreamChange={setVideoStream}
+        />
+      }
+      videoRef={videoRef}
+      volume={volume}
+    />
+  );
+}
+
+function App() {
   return (
     <ThemeProvider theme={theme}>
       <div className="App terminal-screen">
         <LiveAPIProvider url={uri} apiKey={API_KEY}>
-          <TerminalLayout
-            debugPanel={<DebugPanel />}
-            chatPanel={<ChatPanel />}
-            controlPanel={
-              <ControlTray
-                videoRef={videoRef}
-                supportsVideo={true}
-                onVideoStreamChange={setVideoStream}
-              />
-            }
-            videoRef={videoRef}
-          />
+          <AppContent />
         </LiveAPIProvider>
       </div>
     </ThemeProvider>
