@@ -240,3 +240,12 @@ export const isToolCallCancellation = (
   a: unknown,
 ): a is ToolCallCancellationMessage["toolCallCancellation"] =>
   typeof a === "object" && Array.isArray((a as any).ids);
+
+export interface MultimodalLiveClientEventTypes {
+  close: () => void;
+  error: (error: Error) => void;
+  content: (content: ServerContent) => void;
+  interrupted: () => void;
+  audio: (data: ArrayBuffer) => void;
+  toolcall: (toolCall: ToolCall) => Promise<any>;
+}

@@ -1,5 +1,6 @@
 import styled from 'styled-components';
-import React, { RefObject } from 'react';
+import React, { RefObject, useState } from 'react';
+import GifDisplay from '../GifDisplay/GifDisplay';
 
 const Container = styled.div`
   display: flex;
@@ -160,14 +161,18 @@ interface TerminalLayoutProps {
   controlPanel: React.ReactNode;
   videoRef: RefObject<HTMLVideoElement>;
   volume: number;
+  gifUrl?: string | null;
 }
 
 export default function TerminalLayout({ 
   chatPanel,
   controlPanel,
   videoRef,
-  volume 
+  volume,
+  gifUrl 
 }: TerminalLayoutProps) {
+  const [isGifLoading, setIsGifLoading] = useState(false);
+
   return (
     <Container>
       <MainContent>
@@ -178,17 +183,21 @@ export default function TerminalLayout({
         
         <MediaPanel>
           <SectionLabel>MEDIA FEED</SectionLabel>
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            playsInline 
-            muted 
-            style={{ 
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover'
-            }} 
-          />
+          {gifUrl ? (
+            <GifDisplay gifUrl={gifUrl} isLoading={isGifLoading} />
+          ) : (
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              muted 
+              style={{ 
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }} 
+            />
+          )}
         </MediaPanel>
       </MainContent>
       

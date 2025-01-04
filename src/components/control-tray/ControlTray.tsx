@@ -27,6 +27,7 @@ import AudioPulse from "../audio-pulse/AudioPulse";
 import AudioViz from "../audio-viz";
 import "./control-tray.scss";
 import { useTheme } from "styled-components";
+import { searchGifDeclaration } from '../../lib/config';
 
 export type ControlTrayProps = {
   videoRef: RefObject<HTMLVideoElement>;
@@ -496,16 +497,28 @@ function ControlTray({
 
   //handler for swapping from one video-stream to the next
   const changeStreams = (next?: UseMediaStreamResult) => async () => {
-    if (next) {
-      const mediaStream = await next.start();
-      setActiveVideoStream(mediaStream);
-      onVideoStreamChange(mediaStream);
-    } else {
-      setActiveVideoStream(null);
-      onVideoStreamChange(null);
-    }
+    try {
+      console.log('Changing streams, next stream type:', next?.type);
+      if (next) {
+        console.log('Starting new stream...');
+        const mediaStream = await next.start();
+        console.log('New stream started successfully:', mediaStream);
+        setActiveVideoStream(mediaStream);
+        onVideoStreamChange(mediaStream);
+      } else {
+        console.log('Stopping current stream...');
+        setActiveVideoStream(null);
+        onVideoStreamChange(null);
+      }
 
-    videoStreams.filter((msr) => msr !== next).forEach((msr) => msr.stop());
+      console.log('Stopping other streams...');
+      videoStreams.filter((msr) => msr !== next).forEach((msr) => {
+        console.log('Stopping stream of type:', msr.type);
+        msr.stop();
+      });
+    } catch (error) {
+      console.error('Error changing streams:', error);
+    }
   };
 
   // Handle mode switch
@@ -540,7 +553,10 @@ function ControlTray({
           }
         } : {}),
       },
-      tools: [{ googleSearch: {} }],
+      tools: [
+        { googleSearch: {} },
+        { functionDeclarations: [searchGifDeclaration] }
+      ],
     };
     
     console.log('Setting config:', config); // Debug log
@@ -559,11 +575,12 @@ function ControlTray({
             playsInline 
             muted 
             style={{ 
-              width: '320px', 
-              height: '180px', 
+              width: '100%', 
+              height: '100%', 
               objectFit: 'cover',
-              borderRadius: '4px',
-              border: `1px solid ${theme.colors.primary}33`,
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
               transform: 'none'
             }} 
           />

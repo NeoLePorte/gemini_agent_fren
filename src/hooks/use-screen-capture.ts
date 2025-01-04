@@ -41,20 +41,28 @@ export function useScreenCapture(): UseMediaStreamResult {
   }, [stream]);
 
   const start = async () => {
-    // const controller = new CaptureController();
-    // controller.setFocusBehavior("no-focus-change");
-    const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      // controller
-    });
-    setStream(mediaStream);
-    setIsStreaming(true);
-    return mediaStream;
+    try {
+      console.log('Starting screen capture...');
+      const mediaStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+      });
+      console.log('Screen capture stream obtained:', mediaStream);
+      setStream(mediaStream);
+      setIsStreaming(true);
+      return mediaStream;
+    } catch (error) {
+      console.error('Screen capture failed:', error);
+      throw error;
+    }
   };
 
   const stop = () => {
+    console.log('Stopping screen capture...');
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach((track) => {
+        console.log('Stopping track:', track.kind, track.label);
+        track.stop();
+      });
       setStream(null);
       setIsStreaming(false);
     }

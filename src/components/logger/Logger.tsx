@@ -47,53 +47,105 @@ const LoggerContainer = styled.div`
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  text-align: left;
   
   .log-entry {
     margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
     
     .timestamp {
       color: ${props => props.theme.colors.primary};
       opacity: 0.7;
       margin-right: 10px;
+      flex-shrink: 0;
+      min-width: 80px;
     }
-    
-    .message {
-      &.client {
-        color: ${props => props.theme.colors.primary};
-      }
-      
-      &.server {
-        opacity: 0.8;
-      }
-    }
-  }
 
-  .rich-log {
-    margin: 10px 0;
-    padding: 10px;
-    border: 1px solid ${props => `${props.theme.colors.primary}33`};
-    border-radius: 4px;
-    
-    h4 {
-      margin: 0 0 10px;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      opacity: 0.8;
+    .message {
+      flex: 1;
     }
-    
-    .part {
-      margin: 5px 0;
+
+    .rich-log {
+      width: 100%;
+      margin: 10px 0 10px 80px;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: left;
       
-      &.part-text {
-        white-space: pre-wrap;
+      &.client-content {
+        border: 1px solid ${props => `${props.theme.colors.primary}33`};
+        h4 { 
+          color: ${props => props.theme.colors.primary}; 
+          border-bottom: 1px solid ${props => `${props.theme.colors.primary}33`};
+        }
       }
       
-      &.part-executableCode, &.part-codeExecutionResult {
-        h5 {
-          margin: 10px 0 5px;
-          font-size: 12px;
-          opacity: 0.8;
+      &.model-turn {
+        border: 1px solid ${props => `${props.theme.colors.accent}33`};
+        h4 { 
+          color: ${props => props.theme.colors.accent}; 
+          border-bottom: 1px solid ${props => `${props.theme.colors.accent}33`};
+        }
+      }
+      
+      &.tool-call {
+        border: 1px solid ${props => `${props.theme.colors.secondary}33`};
+        h4 { 
+          color: ${props => props.theme.colors.secondary}; 
+          border-bottom: 1px solid ${props => `${props.theme.colors.secondary}33`};
+        }
+      }
+      
+      &.tool-response {
+        border: 1px solid ${props => `${props.theme.colors.chartGreen}33`};
+        h4 { 
+          color: ${props => props.theme.colors.chartGreen}; 
+          border-bottom: 1px solid ${props => `${props.theme.colors.chartGreen}33`};
+        }
+      }
+      
+      &.tool-call-cancellation {
+        border: 1px solid ${props => `${props.theme.colors.warning}33`};
+        h4 { 
+          color: ${props => props.theme.colors.warning}; 
+          border-bottom: 1px solid ${props => `${props.theme.colors.warning}33`};
+        }
+      }
+      
+      h4 {
+        margin: 0 0 10px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        text-shadow: 0 0 10px currentColor;
+        padding-bottom: 8px;
+      }
+      
+      .part {
+        margin: 5px 0;
+        background: ${props => `${props.theme.colors.background}cc`};
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid ${props => `${props.theme.colors.primary}11`};
+        
+        &.part-text {
+          white-space: pre-wrap;
+        }
+        
+        &.part-executableCode, &.part-codeExecutionResult {
+          h5 {
+            margin: 10px 0 5px;
+            font-size: 12px;
+            opacity: 0.8;
+            color: inherit;
+          }
+        }
+
+        pre {
+          margin: 0;
+          text-align: left;
         }
       }
     }
@@ -141,9 +193,7 @@ const RenderPart = ({ part }: { part: Part }) =>
   );
 
 const PlainTextMessage = ({ message }: { message: string }) => (
-  <div className="log-entry">
-    <span className="message">{message}</span>
-  </div>
+  <span className="message">{message}</span>
 );
 
 const ClientContentLog = ({ message }: MessageProps) => {
@@ -151,7 +201,7 @@ const ClientContentLog = ({ message }: MessageProps) => {
   const { turns, turnComplete } = message.clientContent;
   return (
     <div className="rich-log client-content">
-      <h4>User</h4>
+      <h4>👤 User</h4>
       {turns.map((turn, i) => (
         <div key={`message-turn-${i}`}>
           {turn.parts
@@ -171,10 +221,16 @@ const ToolCallLog = ({ message }: MessageProps) => {
   const { toolCall } = message;
   return (
     <div className="rich-log tool-call">
-      <h4>Tool Call</h4>
-      <SyntaxHighlighter language="json" style={dark}>
-        {JSON.stringify(toolCall, null, 2)}
-      </SyntaxHighlighter>
+      <h4>🛠️ Tool Call</h4>
+      {toolCall.functionCalls.map((call, index) => (
+        <div key={index} className="part">
+          <h5>Function: {call.name}</h5>
+          <SyntaxHighlighter language="json" style={dark}>
+            {JSON.stringify(call.args, null, 2)}
+          </SyntaxHighlighter>
+          <div style={{ fontSize: '0.8em', opacity: 0.7 }}>ID: {call.id}</div>
+        </div>
+      ))}
     </div>
   );
 };
@@ -184,10 +240,12 @@ const ToolCallCancellationLog = ({ message }: MessageProps) => {
   const { toolCallCancellation } = message;
   return (
     <div className="rich-log tool-call-cancellation">
-      <h4>Tool Call Cancellation</h4>
-      <SyntaxHighlighter language="json" style={dark}>
-        {JSON.stringify(toolCallCancellation, null, 2)}
-      </SyntaxHighlighter>
+      <h4>❌ Tool Call Cancelled</h4>
+      <div className="part">
+        <SyntaxHighlighter language="json" style={dark}>
+          {JSON.stringify(toolCallCancellation, null, 2)}
+        </SyntaxHighlighter>
+      </div>
     </div>
   );
 };
@@ -197,10 +255,15 @@ const ToolResponseLog = ({ message }: MessageProps) => {
   const { toolResponse } = message;
   return (
     <div className="rich-log tool-response">
-      <h4>Tool Response</h4>
-      <SyntaxHighlighter language="json" style={dark}>
-        {JSON.stringify(toolResponse, null, 2)}
-      </SyntaxHighlighter>
+      <h4>✅ Tool Response</h4>
+      {toolResponse.functionResponses.map((response, index) => (
+        <div key={index} className="part">
+          <div style={{ fontSize: '0.8em', opacity: 0.7 }}>ID: {response.id}</div>
+          <SyntaxHighlighter language="json" style={dark}>
+            {JSON.stringify(response.response, null, 2)}
+          </SyntaxHighlighter>
+        </div>
+      ))}
     </div>
   );
 };
@@ -213,7 +276,7 @@ const ModelTurnLog = ({ message }: MessageProps) => {
 
   return (
     <div className="rich-log model-turn">
-      <h4>Model</h4>
+      <h4>🤖 Model</h4>
       {parts
         .filter((part) => !(part.text && part.text === "\n"))
         .map((part, j) => (
@@ -312,7 +375,11 @@ export default function Logger({ filter }: LoggerProps) {
       {filteredLogs.map((log, i) => {
         const Component = getComponent(log);
         return (
-          <div key={i} className={cn("log-entry", log.type)}>
+          <div key={i} className={cn("log-entry", {
+            'client-message': log.type.startsWith('client'),
+            'server-message': log.type.startsWith('server'),
+            'tool-message': log.type.includes('tool')
+          })}>
             <span className="timestamp">{log.date.toLocaleTimeString()}</span>
             <Component message={log.message} />
           </div>

@@ -15,6 +15,7 @@ const FloatingWindow = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
+  pointer-events: auto;
 
   &::before {
     content: '';

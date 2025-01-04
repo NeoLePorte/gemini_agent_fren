@@ -23,6 +23,9 @@ import TerminalLayout from "./components/TerminalLayout/TerminalLayout";
 import ChatPanel from "./components/ChatPanel/ChatPanel";
 import { ThemeProvider } from 'styled-components';
 import FloatingDebugWindow from "./components/FloatingDebugWindow/FloatingDebugWindow";
+import { searchGifs } from './lib/giphy-service';
+import Logger from './components/logger/Logger';
+import { useLoggerStore } from './lib/store-logger';
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
@@ -83,13 +86,92 @@ const theme = {
 function AppContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  const { volume } = useLiveAPIContext();
+  const [currentGifUrl, setCurrentGifUrl] = useState<string | null>(null);
+  const { volume, client } = useLiveAPIContext();
   const [showDebug, setShowDebug] = useState(false);
+  const { log } = useLoggerStore();
 
   const handleDebugToggle = useCallback(() => {
     console.log('Toggling debug, current state:', showDebug);
     setShowDebug(prev => !prev);
   }, []);
+
+  // Connect to client logs
+  useEffect(() => {
+    client.on('log', log);
+    return () => {
+      client.off('log', log);
+    };
+  }, [client, log]);
+
+  // Add debug logging for tool calls
+  useEffect(() => {
+    const handleToolCall = (toolCall: any) => {
+      console.log('Tool call received:', toolCall);
+      
+      const gifCall = toolCall.functionCalls.find(
+        (fc: any) => fc.name === 'searchGif'
+      );
+
+      if (gifCall) {
+        console.log('GIF tool call detected:', gifCall);
+        console.log('Attempting to search GIF with query:', gifCall.args.query);
+        searchGifs({
+          query: gifCall.args.query,
+          rating: gifCall.args.rating || 'g',
+          limit: 1
+        })
+        .then(results => {
+          if (results.length > 0) {
+            console.log('GIF search successful:', results[0]);
+            setCurrentGifUrl(results[0].url);
+            // Send success response back
+            const response = {
+              functionResponses: [{
+                response: { success: true, url: results[0].url },
+                id: gifCall.id
+              }]
+            };
+            console.log('Sending tool response:', response);
+            client.sendToolResponse(response);
+          } else {
+            console.log('No GIFs found for query:', gifCall.args.query);
+            const response = {
+              functionResponses: [{
+                response: { success: false, error: 'No GIFs found' },
+                id: gifCall.id
+              }]
+            };
+            console.log('Sending error response:', response);
+            client.sendToolResponse(response);
+          }
+        })
+        .catch(error => {
+          console.error('GIF search failed:', error);
+          const response = {
+            functionResponses: [{
+              response: { success: false, error: error.message },
+              id: gifCall.id
+            }]
+          };
+          console.log('Sending error response:', response);
+          client.sendToolResponse(response);
+        });
+      }
+    };
+
+    client.on('toolcall', handleToolCall);
+    return () => {
+      client.off('toolcall', handleToolCall);
+    };
+  }, [client]);
+
+  // Clear GIF when video stream changes
+  useEffect(() => {
+    if (videoStream) {
+      setCurrentGifUrl(null);
+    }
+  }, [videoStream]);
 
   return (
     <div style={{ 
@@ -113,6 +195,7 @@ function AppContent() {
         }
         videoRef={videoRef}
         volume={volume}
+        gifUrl={currentGifUrl}
       />
       
       {showDebug && (
@@ -122,14 +205,12 @@ function AppContent() {
           pointerEvents: 'none',
           zIndex: 9999
         }}>
-          <div style={{ pointerEvents: 'auto' }}>
-            <FloatingDebugWindow 
-              onClose={() => setShowDebug(false)}
-              defaultPosition={{ x: window.innerWidth - 350, y: 40 }}
-            >
-              <DebugPanel />
-            </FloatingDebugWindow>
-          </div>
+          <FloatingDebugWindow 
+            onClose={() => setShowDebug(false)}
+            defaultPosition={{ x: window.innerWidth - 350, y: 40 }}
+          >
+            <Logger filter="none" />
+          </FloatingDebugWindow>
         </div>
       )}
     </div>

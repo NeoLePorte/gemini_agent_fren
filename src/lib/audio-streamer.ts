@@ -30,8 +30,10 @@ export class AudioStreamer {
   public source: AudioBufferSourceNode;
   private isStreamComplete: boolean = false;
   private checkInterval: number | null = null;
-  private initialBufferTime: number = 0.1; //0.1 // 100ms initial buffer
+  private readonly minBufferTime = 0.2;
   private endOfQueueAudioSource: AudioBufferSourceNode | null = null;
+  private readonly maxQueueSize = 20;
+  private initialBufferTime: number = 0.1;
 
   public onComplete = () => {};
 
@@ -78,19 +80,10 @@ export class AudioStreamer {
     const float32Array = new Float32Array(chunk.length / 2);
     const dataView = new DataView(chunk.buffer);
 
-    // Add limiter to prevent clipping
-    const limit = 0.95; // Leave some headroom
     for (let i = 0; i < chunk.length / 2; i++) {
       try {
         const int16 = dataView.getInt16(i * 2, true);
-        let sample = int16 / 32768;
-        // Soft clipping
-        if (sample > limit) {
-          sample = limit + (1 - limit) * Math.tanh((sample - limit) / (1 - limit));
-        } else if (sample < -limit) {
-          sample = -limit + (1 - limit) * Math.tanh((sample + limit) / (1 - limit));
-        }
-        float32Array[i] = sample;
+        float32Array[i] = int16 / 32768;
       } catch (e) {
         console.error(e);
       }
@@ -112,7 +105,7 @@ export class AudioStreamer {
     if (!this.isPlaying) {
       this.isPlaying = true;
       // Initialize scheduledTime only when we start playing
-      this.scheduledTime = this.context.currentTime + this.initialBufferTime;
+      this.scheduledTime = this.context.currentTime + this.minBufferTime;
       this.scheduleNextBuffer();
     }
   }
@@ -138,53 +131,20 @@ export class AudioStreamer {
       const audioBuffer = this.createAudioBuffer(audioData);
       const source = this.context.createBufferSource();
 
-      if (this.audioQueue.length === 0) {
-        if (this.endOfQueueAudioSource) {
-          this.endOfQueueAudioSource.onended = null;
-        }
-        this.endOfQueueAudioSource = source;
-        source.onended = () => {
-          if (
-            !this.audioQueue.length &&
-            this.endOfQueueAudioSource === source
-          ) {
-            this.endOfQueueAudioSource = null;
-            this.onComplete();
-          }
-        };
-      }
-
+      // Optimize audio scheduling
+      const startTime = Math.max(
+        this.scheduledTime,
+        this.context.currentTime + 0.005 // Small offset to prevent glitches
+      );
+      
       source.buffer = audioBuffer;
       source.connect(this.gainNode);
-
-      const worklets = registeredWorklets.get(this.context);
-
-      if (worklets) {
-        Object.entries(worklets).forEach(([workletName, graph]) => {
-          const { node, handlers } = graph;
-          if (node) {
-            source.connect(node);
-            node.port.onmessage = function (ev: MessageEvent) {
-              handlers.forEach((handler) => {
-                handler.call(node.port, ev);
-              });
-            };
-            node.connect(this.context.destination);
-          }
-        });
-      }
-
-      // i added this trying to fix clicks
-      // this.gainNode.gain.setValueAtTime(0, 0);
-      // this.gainNode.gain.linearRampToValueAtTime(1, 1);
-
-      // Ensure we never schedule in the past
-      const startTime = Math.max(this.scheduledTime, this.context.currentTime);
       source.start(startTime);
 
       this.scheduledTime = startTime + audioBuffer.duration;
     }
 
+    // More efficient check interval handling
     if (this.audioQueue.length === 0 && this.processingBuffer.length === 0) {
       if (this.isStreamComplete) {
         this.isPlaying = false;
@@ -243,7 +203,7 @@ export class AudioStreamer {
       await this.context.resume();
     }
     this.isStreamComplete = false;
-    this.scheduledTime = this.context.currentTime + this.initialBufferTime;
+    this.scheduledTime = this.context.currentTime + this.minBufferTime;
     this.gainNode.gain.setValueAtTime(1, this.context.currentTime);
   }
 
