@@ -26,6 +26,7 @@ import FloatingDebugWindow from "./components/FloatingDebugWindow/FloatingDebugW
 import { searchGifs } from './lib/giphy-service';
 import Logger from './components/logger/Logger';
 import { useLoggerStore } from './lib/store-logger';
+import { searchYouTubeVideos } from './lib/youtube-service';
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
@@ -87,6 +88,7 @@ function AppContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const [currentGifUrl, setCurrentGifUrl] = useState<string | null>(null);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const { volume, client } = useLiveAPIContext();
   const [showDebug, setShowDebug] = useState(false);
   const { log } = useLoggerStore();
@@ -116,6 +118,8 @@ function AppContent() {
       if (gifCall) {
         console.log('GIF tool call detected:', gifCall);
         console.log('Attempting to search GIF with query:', gifCall.args.query);
+        // Clear any existing video from media feed
+        setCurrentVideoId(null);
         searchGifs({
           query: gifCall.args.query,
           rating: gifCall.args.rating || 'g',
@@ -158,6 +162,51 @@ function AppContent() {
           client.sendToolResponse(response);
         });
       }
+
+      const youtubeCall = toolCall.functionCalls.find(
+        (fc: any) => fc.name === 'searchYouTube'
+      );
+
+      if (youtubeCall) {
+        console.log('YouTube tool call detected:', youtubeCall);
+        // Clear any existing GIF from media feed
+        setCurrentGifUrl(null);
+        searchYouTubeVideos({ query: youtubeCall.args.query })
+          .then(results => {
+            if (results.length > 0) {
+              console.log('YouTube search successful:', results[0]);
+              setCurrentVideoId(results[0].id);
+              client.sendToolResponse({
+                functionResponses: [{
+                  response: { 
+                    success: true, 
+                    id: results[0].id,
+                    title: results[0].title,
+                    thumbnail: results[0].thumbnailUrl
+                  },
+                  id: youtubeCall.id
+                }]
+              });
+            } else {
+              console.log('No videos found for query:', youtubeCall.args.query);
+              client.sendToolResponse({
+                functionResponses: [{
+                  response: { success: false, error: 'No videos found' },
+                  id: youtubeCall.id
+                }]
+              });
+            }
+          })
+          .catch(error => {
+            console.error('YouTube search failed:', error);
+            client.sendToolResponse({
+              functionResponses: [{
+                response: { success: false, error: error.message },
+                id: youtubeCall.id
+              }]
+            });
+          });
+      }
     };
 
     client.on('toolcall', handleToolCall);
@@ -165,13 +214,6 @@ function AppContent() {
       client.off('toolcall', handleToolCall);
     };
   }, [client]);
-
-  // Clear GIF when video stream changes
-  useEffect(() => {
-    if (videoStream) {
-      setCurrentGifUrl(null);
-    }
-  }, [videoStream]);
 
   return (
     <div style={{ 
@@ -196,6 +238,7 @@ function AppContent() {
         videoRef={videoRef}
         volume={volume}
         gifUrl={currentGifUrl}
+        videoId={currentVideoId}
       />
       
       {showDebug && (

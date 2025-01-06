@@ -55,7 +55,6 @@ export class AudioStreamer {
       // add the new handler to it
       workletsRecord[workletName].handlers.push(handler);
       return Promise.resolve(this);
-      //throw new Error(`Worklet ${workletName} already exists on context`);
     }
 
     if (!workletsRecord) {
@@ -70,6 +69,9 @@ export class AudioStreamer {
     await this.context.audioWorklet.addModule(src);
     const worklet = new AudioWorkletNode(this.context, workletName);
 
+    // Connect the worklet to the gain node for volume analysis
+    this.gainNode.connect(worklet);
+
     //add the node into the map
     workletsRecord[workletName].node = worklet;
 
@@ -80,13 +82,27 @@ export class AudioStreamer {
     const float32Array = new Float32Array(chunk.length / 2);
     const dataView = new DataView(chunk.buffer);
 
+    // Calculate RMS volume while converting
+    let sumSquares = 0;
     for (let i = 0; i < chunk.length / 2; i++) {
       try {
         const int16 = dataView.getInt16(i * 2, true);
-        float32Array[i] = int16 / 32768;
+        const sample = int16 / 32768;
+        float32Array[i] = sample;
+        sumSquares += sample * sample;
       } catch (e) {
         console.error(e);
       }
+    }
+
+    // Update volume for visualization
+    const rms = Math.sqrt(sumSquares / (chunk.length / 2));
+    const volume = Math.min(1, rms * 4); // Amplify but clamp to 1
+    
+    // Notify volume handlers
+    const workletsRecord = registeredWorklets.get(this.context);
+    if (workletsRecord && workletsRecord['vumeter-out'] && workletsRecord['vumeter-out'].node) {
+      workletsRecord['vumeter-out'].node.port.postMessage({ volume });
     }
 
     const newBuffer = new Float32Array(
@@ -104,7 +120,6 @@ export class AudioStreamer {
 
     if (!this.isPlaying) {
       this.isPlaying = true;
-      // Initialize scheduledTime only when we start playing
       this.scheduledTime = this.context.currentTime + this.minBufferTime;
       this.scheduleNextBuffer();
     }

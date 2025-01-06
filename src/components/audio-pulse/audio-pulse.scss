@@ -10,25 +10,49 @@
     height: 4px;
     background-color: var(--color-primary);
     border-radius: 2px;
-    transition: height 0.2s ease-in-out, opacity 0.3s ease;
-    will-change: height;
+    transition: height 0.15s ease-in-out, opacity 0.3s ease, background-color 0.3s ease;
+    will-change: height, background-color;
 
     @keyframes pulse {
       0% {
         opacity: 0.3;
+        filter: hue-rotate(0deg) brightness(1);
       }
       50% {
         opacity: 1;
+        filter: hue-rotate(180deg) brightness(1.5);
       }
       100% {
         opacity: 0.3;
+        filter: hue-rotate(360deg) brightness(1);
+      }
+    }
+
+    @keyframes colorShift {
+      0% {
+        background-color: var(--color-primary);
+      }
+      33% {
+        background-color: var(--color-accent);
+      }
+      66% {
+        background-color: var(--color-secondary);
+      }
+      100% {
+        background-color: var(--color-primary);
       }
     }
   }
 
   &.active > div {
-    animation: pulse 2s infinite;
-    background-color: var(--color-primary);
+    animation: pulse 2s infinite, colorShift 4s infinite;
+    box-shadow: 0 0 10px currentColor;
+
+    &:nth-child(1) { animation-delay: 0s, -0.8s; }
+    &:nth-child(2) { animation-delay: 0.1s, -0.6s; }
+    &:nth-child(3) { animation-delay: 0.2s, -0.4s; }
+    &:nth-child(4) { animation-delay: 0.3s, -0.2s; }
+    &:nth-child(5) { animation-delay: 0.4s, 0s; }
   }
 
   &.hover > div {

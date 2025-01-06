@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 import React, { RefObject, useState } from 'react';
 import GifDisplay from '../GifDisplay/GifDisplay';
+import VideoModal from '../VideoModal/VideoModal';
 
 const Container = styled.div`
   display: flex;
@@ -155,13 +156,51 @@ const SectionLabel = styled.div`
   }
 `;
 
+const VideoPreview = styled.div`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0 20px ${props => props.theme.colors.accent}44;
+
+    &::after {
+      opacity: 1;
+    }
+  }
+
+  &::after {
+    content: 'Click to Play';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: ${props => props.theme.colors.text.accent};
+    font-family: ${props => props.theme.fonts.mono};
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  iframe {
+    pointer-events: none;
+  }
+`;
+
 interface TerminalLayoutProps {
   debugPanel: React.ReactNode;
   chatPanel: React.ReactNode;
   controlPanel: React.ReactNode;
-  videoRef: RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement>;
   volume: number;
-  gifUrl?: string | null;
+  gifUrl: string | null;
+  videoId?: string | null;
 }
 
 export default function TerminalLayout({ 
@@ -169,9 +208,11 @@ export default function TerminalLayout({
   controlPanel,
   videoRef,
   volume,
-  gifUrl 
+  gifUrl,
+  videoId
 }: TerminalLayoutProps) {
   const [isGifLoading, setIsGifLoading] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
   return (
     <Container>
@@ -183,7 +224,27 @@ export default function TerminalLayout({
         
         <MediaPanel>
           <SectionLabel>MEDIA FEED</SectionLabel>
-          {gifUrl ? (
+          {videoId ? (
+            <>
+              <VideoPreview onClick={() => setIsVideoModalOpen(true)}>
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={`https://www.youtube.com/embed/${videoId}`}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  style={{ border: 'none' }}
+                />
+              </VideoPreview>
+              {isVideoModalOpen && videoId && (
+                <VideoModal 
+                  videoId={videoId} 
+                  onClose={() => setIsVideoModalOpen(false)} 
+                />
+              )}
+            </>
+          ) : gifUrl ? (
             <GifDisplay gifUrl={gifUrl} isLoading={isGifLoading} />
           ) : (
             <video 

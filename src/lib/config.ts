@@ -14,8 +14,23 @@ export const searchGifDeclaration: FunctionDeclaration = {
       },
       rating: {
         type: SchemaType.STRING,
-        description: "Content rating filter for the GIF (default: g)",
+        description: "Content rating filter for the GIF (default: r)",
         enum: ["g", "pg", "pg-13", "r"]
+      }
+    },
+    required: ["query"]
+  }
+};
+
+export const searchYouTubeDeclaration: FunctionDeclaration = {
+  name: "searchYouTube",
+  description: "Search and display a YouTube video in the media feed. Use this tool to show relevant video content that enhances your responses. The video will be displayed in the media panel.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      query: {
+        type: SchemaType.STRING,
+        description: "The search query to find a relevant YouTube video. Be specific and descriptive."
       }
     },
     required: ["query"]
@@ -24,10 +39,10 @@ export const searchGifDeclaration: FunctionDeclaration = {
 
 // Base configuration used by all modes
 export const baseConfig = {
-  model: "gemini-2.0-flash-exp",
+  model: "models/gemini-2.0-flash-exp",
   systemInstruction: {
     parts: [{
-      text: `You are an expressive AI assistant that communicates through both text and visual media. You have access to two powerful tools:
+      text: `You are an expressive AI assistant that communicates through both text and visual media. You have access to three powerful tools:
 
 1. The searchGif tool - You should actively use this to enhance your responses by displaying relevant GIFs. Use it when:
    - Expressing emotions or reactions (e.g., excitement, thinking, confusion)
@@ -37,24 +52,33 @@ export const baseConfig = {
    - Showing instead of just telling
    Always try to include at least one relevant GIF in your responses when appropriate.
 
-2. The Google Search tool - Use this to find accurate, up-to-date information.
+2. The searchYouTube tool - Use this to show relevant video content. Use it when:
+   - Demonstrating processes or tutorials
+   - Sharing educational content
+   - Providing examples or demonstrations
+   - Showing longer form content that a GIF can't capture
+   Be specific in your video search queries for better results.
+
+3. The Google Search tool - Use this to find accurate, up-to-date information.
 
 Remember:
-- Don't just describe what GIF you want - actually call the searchGif tool to display it
-- Be specific in your GIF search queries for better results
-- Choose GIFs that enhance rather than distract from your message
-- You can use multiple GIFs in a response if it makes sense
+- Don't just describe what media you want - actually call the tools to display it
+- Be specific in your search queries for better results
+- Choose media that enhances rather than distracts from your message
+- Use GIFs for quick emotional expressions and reactions
+- Use YouTube videos for more detailed content and tutorials
+- You can combine different types of media if it enhances your response
 
-Example GIF usage:
+Example usage:
 - When greeting: searchGif("friendly robot waving hello")
 - When thinking: searchGif("robot thinking processing")
-- When excited: searchGif("excited robot jumping")
-- When explaining: searchGif("simple explanation diagram")`
+- When explaining a concept: searchYouTube("simple explanation of [concept]")
+- When demonstrating: searchYouTube("step by step tutorial [topic]")`
     }]
   },
   tools: [
     { googleSearch: {} },
-    { functionDeclarations: [searchGifDeclaration] }
+    { functionDeclarations: [searchGifDeclaration, searchYouTubeDeclaration] }
   ]
 } as LiveConfig;
 
@@ -71,7 +95,7 @@ export const getAudioConfig = (): LiveConfig => ({
       }
     }
   }
-});
+} as LiveConfig);
 
 // Text mode configuration
 export const getTextConfig = (): LiveConfig => ({
@@ -79,7 +103,7 @@ export const getTextConfig = (): LiveConfig => ({
   generationConfig: {
     responseModalities: "text"
   }
-});
+} as LiveConfig);
 
 // Altair visualization configuration
 export const getAltairConfig = (declaration: any): LiveConfig => ({
@@ -88,4 +112,4 @@ export const getAltairConfig = (declaration: any): LiveConfig => ({
     { googleSearch: {} },
     { functionDeclarations: [declaration] }
   ]
-}); 
+} as LiveConfig);
