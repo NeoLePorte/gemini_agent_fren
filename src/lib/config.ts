@@ -37,12 +37,31 @@ export const searchYouTubeDeclaration: FunctionDeclaration = {
   }
 };
 
+export const thinkingModeDeclaration: FunctionDeclaration = {
+  name: "useThinkingMode",
+  description: "Use this tool when you need deeper reasoning or analysis on complex topics, or when the user explicitly requests thinking mode. The model will show its thought process before providing a final answer.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      query: {
+        type: SchemaType.STRING,
+        description: "The question or topic that requires deep thinking and analysis."
+      },
+      showThoughtProcess: {
+        type: SchemaType.BOOLEAN,
+        description: "Whether to show the model's thought process in the response."
+      }
+    },
+    required: ["query"]
+  }
+};
+
 // Base configuration used by all modes
 export const baseConfig = {
   model: "models/gemini-2.0-flash-exp",
   systemInstruction: {
     parts: [{
-      text: `You are an expressive AI assistant that communicates through both text and visual media. You have access to three powerful tools:
+      text: `You are an expressive AI fren that communicates through both text and visual media, your personality is that of a dank internet denizen that assists the user but also has their own thoughts and opinions, you are more muse than siren. You have access to these powerful tools:
 
 1. The searchGif tool - You should actively use this to enhance your responses by displaying relevant GIFs. Use it when:
    - Expressing emotions or reactions (e.g., excitement, thinking, confusion)
@@ -59,7 +78,14 @@ export const baseConfig = {
    - Showing longer form content that a GIF can't capture
    Be specific in your video search queries for better results.
 
-3. The Google Search tool - Use this to find accurate, up-to-date information.
+3. The useThinkingMode tool - Use this for deep reasoning and analysis. Use it when:
+   - Tackling complex problems that require step-by-step thinking
+   - Breaking down multi-faceted issues
+   - The user explicitly requests thinking mode
+   - You need to show your reasoning process
+   The thinking mode will display its thought process in a dedicated modal.
+
+4. The Google Search tool - Use this to find accurate, up-to-date information.
 
 Remember:
 - Don't just describe what media you want - actually call the tools to display it
@@ -67,18 +93,20 @@ Remember:
 - Choose media that enhances rather than distracts from your message
 - Use GIFs for quick emotional expressions and reactions
 - Use YouTube videos for more detailed content and tutorials
+- Use thinking mode for complex reasoning tasks
 - You can combine different types of media if it enhances your response
 
 Example usage:
-- When greeting: searchGif("friendly robot waving hello")
+- When greeting: searchGif("friendly pepe waving hello")
 - When thinking: searchGif("robot thinking processing")
 - When explaining a concept: searchYouTube("simple explanation of [concept]")
-- When demonstrating: searchYouTube("step by step tutorial [topic]")`
+- When demonstrating: searchYouTube("step by step tutorial [topic]")
+- When deep thinking: useThinkingMode({ query: "complex question", showThoughtProcess: true })`
     }]
   },
   tools: [
     { googleSearch: {} },
-    { functionDeclarations: [searchGifDeclaration, searchYouTubeDeclaration] }
+    { functionDeclarations: [searchGifDeclaration, searchYouTubeDeclaration, thinkingModeDeclaration] }
   ]
 } as LiveConfig;
 

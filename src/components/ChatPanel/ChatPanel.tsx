@@ -67,6 +67,14 @@ const Message = styled.div<{ $isUser?: boolean }>`
   line-height: 1.5;
   max-width: 85%;
   align-self: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
+  white-space: pre-wrap;
+  
+  pre {
+    margin: 0;
+    font-family: ${props => props.theme.fonts.mono};
+    white-space: pre;
+    overflow-x: auto;
+  }
   
   ${props => props.$isUser ? `
     background: ${props.theme.colors.accent}11;
@@ -179,6 +187,7 @@ export default function ChatPanel() {
   const { client, connected } = useLiveAPIContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [currentMessage, setCurrentMessage] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
@@ -199,20 +208,53 @@ export default function ChatPanel() {
         console.log('Extracted text:', textContent); // Debug log
         
         if (textContent) {
-          setMessages(prev => [...prev, {
-            role: 'model',
-            content: textContent,
-            timestamp: new Date()
-          }]);
+          // If we have a current message, append to it
+          if (currentMessage) {
+            setCurrentMessage(prev => prev + textContent);
+            // Update the last message
+            setMessages(prev => {
+              const newMessages = [...prev];
+              if (newMessages.length > 0) {
+                newMessages[newMessages.length - 1] = {
+                  ...newMessages[newMessages.length - 1],
+                  content: currentMessage + textContent
+                };
+              }
+              return newMessages;
+            });
+          } else {
+            // Start a new message
+            setCurrentMessage(textContent);
+            setMessages(prev => [...prev, {
+              role: 'model',
+              content: textContent,
+              timestamp: new Date()
+            }]);
+          }
         }
       }
     };
 
+    const handleInterrupted = () => {
+      console.log('Message interrupted, preserving current state');
+      // Don't clear currentMessage here, keep it for continuation
+    };
+
+    const handleTurnComplete = () => {
+      console.log('Turn complete, clearing current message');
+      setCurrentMessage(''); // Clear current message only on turn complete
+    };
+
     client.on('content', handleContent);
+    client.on('interrupted', handleInterrupted);
+    client.on('turncomplete', handleTurnComplete);
+    
     return () => {
       client.off('content', handleContent);
+      client.off('interrupted', handleInterrupted);
+      client.off('turncomplete', handleTurnComplete);
     };
-  }, [client]);
+  }, [client, currentMessage]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,7 +286,9 @@ export default function ChatPanel() {
       <MessagesContainer>
         {messages.map((message, index) => (
           <Message key={index} $isUser={message.role === 'user'}>
-            {message.content}
+            {message.content.includes('\n') || /[│┌┐└┘├┤┬┴┼]/.test(message.content) ? (
+              <pre>{message.content}</pre>
+            ) : message.content}
           </Message>
         ))}
         <div ref={messagesEndRef} />

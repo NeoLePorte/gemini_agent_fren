@@ -27,6 +27,9 @@ import { searchGifs } from './lib/giphy-service';
 import Logger from './components/logger/Logger';
 import { useLoggerStore } from './lib/store-logger';
 import { searchYouTubeVideos } from './lib/youtube-service';
+import ThinkingModal from './components/ThinkingModal/ThinkingModal';
+import { callThinkingMode } from './lib/thinking-service';
+import { Part } from "@google/generative-ai";
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
@@ -92,6 +95,12 @@ function AppContent() {
   const { volume, client } = useLiveAPIContext();
   const [showDebug, setShowDebug] = useState(false);
   const { log } = useLoggerStore();
+  const [isThinkingModalOpen, setIsThinkingModalOpen] = useState(false);
+  const [thinkingResult, setThinkingResult] = useState<{
+    thoughtProcess?: string;
+    finalAnswer: string;
+  } | null>(null);
+  const [thinkingModeEnabled, setThinkingModeEnabled] = useState(false);
 
   const handleDebugToggle = useCallback(() => {
     console.log('Toggling debug, current state:', showDebug);
@@ -106,9 +115,33 @@ function AppContent() {
     };
   }, [client, log]);
 
+  // Add thinking mode toggle handler
+  const handleThinkingModeToggle = useCallback(() => {
+    console.log('Thinking mode toggle clicked');
+    console.log('Current thinking mode state:', thinkingModeEnabled);
+    console.log('Current thinking result:', thinkingResult);
+    
+    const newThinkingModeEnabled = !thinkingModeEnabled;
+    setThinkingModeEnabled(newThinkingModeEnabled);
+    
+    // Only show modal if thinking mode is being enabled and we have results
+    if (newThinkingModeEnabled) {
+      setIsThinkingModalOpen(true);
+    } else {
+      setIsThinkingModalOpen(false);
+    }
+  }, [thinkingModeEnabled, thinkingResult]);
+
+  // Add effect to log state changes
+  useEffect(() => {
+    console.log('Thinking mode enabled:', thinkingModeEnabled);
+    console.log('Thinking modal open:', isThinkingModalOpen);
+    console.log('Thinking result:', thinkingResult);
+  }, [thinkingModeEnabled, isThinkingModalOpen, thinkingResult]);
+
   // Add debug logging for tool calls
   useEffect(() => {
-    const handleToolCall = (toolCall: any) => {
+    const handleToolCall = async (toolCall: any) => {
       console.log('Tool call received:', toolCall);
       
       const gifCall = toolCall.functionCalls.find(
@@ -207,13 +240,68 @@ function AppContent() {
             });
           });
       }
+
+      const thinkingCall = toolCall.functionCalls.find(
+        (fc: any) => fc.name === 'useThinkingMode'
+      );
+
+      if (thinkingCall) {
+        console.log('Thinking mode call detected:', thinkingCall);
+        try {
+          const query = thinkingCall.args.query;
+          // Use the showThoughtProcess value from the tool call, defaulting to true if not specified
+          const showThoughtProcess = thinkingCall.args.showThoughtProcess ?? true;
+
+          const result = await callThinkingMode(query, showThoughtProcess);
+          console.log('Thinking mode result:', result);
+          
+          // Always update the thinking result
+          setThinkingResult(result);
+          
+          // Show modal if thinking mode is enabled
+          if (thinkingModeEnabled) {
+            setIsThinkingModalOpen(true);
+          }
+
+          // Send the result back to the model
+          client.sendToolResponse({
+            functionResponses: [{
+              response: { 
+                success: true,
+                result: result.finalAnswer,
+                thoughtProcess: result.thoughtProcess,
+                // Only send final answer as context
+                message: result.finalAnswer
+              },
+              id: thinkingCall.id
+            }]
+          });
+
+          // Send just the final answer as a user message for the base model to analyze
+          const part: Part = { 
+            text: `${result.finalAnswer}\n\nPlease analyze this response and suggest any additional insights or tool usage if needed.`
+          };
+          client.send([part], true); // true means this is a complete turn, allowing the base model to respond
+        } catch (error) {
+          console.error('Thinking mode error:', error);
+          client.sendToolResponse({
+            functionResponses: [{
+              response: { 
+                success: false, 
+                error: error instanceof Error ? error.message : 'Unknown error'
+              },
+              id: thinkingCall.id
+            }]
+          });
+        }
+      }
     };
 
     client.on('toolcall', handleToolCall);
     return () => {
       client.off('toolcall', handleToolCall);
     };
-  }, [client]);
+  }, [client, thinkingModeEnabled]);
 
   return (
     <div style={{ 
@@ -233,6 +321,8 @@ function AppContent() {
             onVideoStreamChange={setVideoStream}
             onDebugToggle={handleDebugToggle}
             debugEnabled={showDebug}
+            onThinkingModeToggle={handleThinkingModeToggle}
+            thinkingModeEnabled={thinkingModeEnabled}
           />
         }
         videoRef={videoRef}
@@ -254,6 +344,21 @@ function AppContent() {
           >
             <Logger filter="none" />
           </FloatingDebugWindow>
+        </div>
+      )}
+
+      {isThinkingModalOpen && (
+        <div style={{ 
+          position: 'fixed', 
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 9999
+        }}>
+          <ThinkingModal
+            thoughtProcess={thinkingResult?.thoughtProcess}
+            finalAnswer={thinkingResult?.finalAnswer}
+            onClose={() => setIsThinkingModalOpen(false)}
+          />
         </div>
       )}
     </div>

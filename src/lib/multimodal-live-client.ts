@@ -194,7 +194,6 @@ export class MultimodalLiveClient extends EventEmitter<MultimodalLiveClientEvent
       if (isInterrupted(serverContent)) {
         this.log("receive.serverContent", "interrupted");
         this.emit("interrupted");
-        return;
       }
       if (isTurnComplete(serverContent)) {
         this.log("server.send", "turnComplete");

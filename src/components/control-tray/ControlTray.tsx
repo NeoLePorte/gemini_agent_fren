@@ -36,6 +36,8 @@ export type ControlTrayProps = {
   onVideoStreamChange?: (stream: MediaStream | null) => void;
   onDebugToggle?: () => void;
   debugEnabled?: boolean;
+  onThinkingModeToggle?: () => void;
+  thinkingModeEnabled?: boolean;
 };
 
 type MediaStreamButtonProps = {
@@ -517,6 +519,8 @@ function ControlTray({
   supportsVideo,
   onDebugToggle,
   debugEnabled = false,
+  onThinkingModeToggle,
+  thinkingModeEnabled = false,
 }: ControlTrayProps) {
   const theme = useTheme();
   const videoStreams = [useWebcam(), useScreenCapture()];
@@ -738,6 +742,17 @@ function ControlTray({
             >
               <span className="material-symbols-outlined">
                 {isAudioResponse ? 'volume_up' : 'text_fields'}
+              </span>
+            </AudioToggle>
+
+            <AudioToggle 
+              active={thinkingModeEnabled} 
+              onClick={onThinkingModeToggle}
+              title={thinkingModeEnabled ? "Disable thinking mode" : "Enable thinking mode"}
+              $color="#00FFCC"
+            >
+              <span className="material-symbols-outlined">
+                psychology
               </span>
             </AudioToggle>
           </MainControls>
