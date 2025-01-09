@@ -68,12 +68,20 @@ const Message = styled.div<{ $isUser?: boolean }>`
   max-width: 85%;
   align-self: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
   white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  text-align: left;
   
   pre {
     margin: 0;
     font-family: ${props => props.theme.fonts.mono};
-    white-space: pre;
-    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    overflow-x: hidden;
   }
   
   ${props => props.$isUser ? `
@@ -183,7 +191,11 @@ const extractTextFromParts = (parts: Part[]): string => {
     .join('');
 };
 
-export default function ChatPanel() {
+export interface ChatPanelProps {
+  onSendMessage?: (parts: Part[]) => void;
+}
+
+export default function ChatPanel({ onSendMessage }: ChatPanelProps) {
   const { client, connected } = useLiveAPIContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -200,18 +212,13 @@ export default function ChatPanel() {
   // Listen for model responses
   useEffect(() => {
     const handleContent = (content: any) => {
-      console.log('Received content:', content); // Debug log
-      
       if (isModelTurn(content)) {
         const { parts } = content.modelTurn;
         const textContent = extractTextFromParts(parts);
-        console.log('Extracted text:', textContent); // Debug log
         
         if (textContent) {
-          // If we have a current message, append to it
           if (currentMessage) {
             setCurrentMessage(prev => prev + textContent);
-            // Update the last message
             setMessages(prev => {
               const newMessages = [...prev];
               if (newMessages.length > 0) {
@@ -223,7 +230,6 @@ export default function ChatPanel() {
               return newMessages;
             });
           } else {
-            // Start a new message
             setCurrentMessage(textContent);
             setMessages(prev => [...prev, {
               role: 'model',
@@ -237,12 +243,11 @@ export default function ChatPanel() {
 
     const handleInterrupted = () => {
       console.log('Message interrupted, preserving current state');
-      // Don't clear currentMessage here, keep it for continuation
     };
 
     const handleTurnComplete = () => {
       console.log('Turn complete, clearing current message');
-      setCurrentMessage(''); // Clear current message only on turn complete
+      setCurrentMessage('');
     };
 
     client.on('content', handleContent);
@@ -270,7 +275,11 @@ export default function ChatPanel() {
 
     // Send message to API
     const part: Part = { text: inputValue.trim() };
-    client.send([part]);
+    if (onSendMessage) {
+      onSendMessage([part]);
+    } else {
+      client.send([part]);
+    }
 
     // Clear input
     setInputValue('');

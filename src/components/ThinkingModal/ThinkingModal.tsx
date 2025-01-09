@@ -16,6 +16,9 @@ const FloatingWindow = styled.div`
   flex-direction: column;
   position: relative;
   pointer-events: auto;
+  contain: content;
+  will-change: transform;
+  transform: translateZ(0);
 
   &::before {
     content: '';
@@ -23,8 +26,9 @@ const FloatingWindow = styled.div`
     inset: 0;
     background: ${props => props.theme.effects.scanlines};
     pointer-events: none;
-    opacity: 0.5;
+    opacity: 0;
     z-index: 1;
+    transition: opacity 0.2s ease-in-out;
   }
 
   &::after {
@@ -33,8 +37,18 @@ const FloatingWindow = styled.div`
     inset: 0;
     background: ${props => props.theme.effects.noise};
     pointer-events: none;
-    opacity: 0.3;
+    opacity: 0;
     z-index: 1;
+    transition: opacity 0.2s ease-in-out;
+  }
+
+  &.visible {
+    &::before {
+      opacity: 0.5;
+    }
+    &::after {
+      opacity: 0.3;
+    }
   }
 `;
 
@@ -277,6 +291,8 @@ interface ThinkingModalProps {
 }
 
 export default function ThinkingModal({ thoughtProcess, finalAnswer, onClose }: ThinkingModalProps) {
+  const [isVisible, setIsVisible] = React.useState(false);
+
   // Close on escape key
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -286,6 +302,13 @@ export default function ThinkingModal({ thoughtProcess, finalAnswer, onClose }: 
     return () => window.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
+  // Add visibility class after mount for transition
+  React.useEffect(() => {
+    requestAnimationFrame(() => {
+      setIsVisible(true);
+    });
+  }, []);
+
   return (
     <div style={{ 
       position: 'fixed', 
@@ -294,7 +317,7 @@ export default function ThinkingModal({ thoughtProcess, finalAnswer, onClose }: 
       zIndex: 9999
     }}>
       <Draggable handle=".handle" defaultPosition={{ x: window.innerWidth - 450, y: 40 }}>
-        <FloatingWindow>
+        <FloatingWindow className={isVisible ? 'visible' : ''}>
           <FrameContainer>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" preserveAspectRatio="none">
               {/* Main frame with animated stroke-dashoffset */}

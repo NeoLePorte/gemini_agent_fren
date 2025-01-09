@@ -30,6 +30,7 @@ import { searchYouTubeVideos } from './lib/youtube-service';
 import ThinkingModal from './components/ThinkingModal/ThinkingModal';
 import { callThinkingMode } from './lib/thinking-service';
 import { Part } from "@google/generative-ai";
+import { useMemory } from './lib/hooks/useMemory';
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
@@ -101,6 +102,7 @@ function AppContent() {
     finalAnswer: string;
   } | null>(null);
   const [thinkingModeEnabled, setThinkingModeEnabled] = useState(false);
+  const { storeMemory, queryMemories } = useMemory();
 
   const handleDebugToggle = useCallback(() => {
     console.log('Toggling debug, current state:', showDebug);
@@ -139,11 +141,114 @@ function AppContent() {
     console.log('Thinking result:', thinkingResult);
   }, [thinkingModeEnabled, isThinkingModalOpen, thinkingResult]);
 
-  // Add debug logging for tool calls
+  // Simplified message handling without storage
+  const handleMessage = useCallback(async (parts: Part[], turnComplete: boolean = true) => {
+    if (!client) return;
+    client.send(parts, turnComplete);
+  }, [client]);
+
+  // Handle user message submissions from the chat panel
+  const handleUserMessage = useCallback(async (parts: Part[]) => {
+    try {
+      const userMessage = parts.map(p => p.text || '').join(' ');
+      const config = client.getConfig();
+      const mode = Boolean(videoStream) || config.generationConfig?.responseModalities === 'audio' 
+        ? 'voice' 
+        : 'text';
+
+      // First query for relevant memories
+      const relevantMemories = await queryMemories(userMessage, 3, mode);
+      console.log('Retrieved memories:', relevantMemories);
+
+      // If we have relevant memories, send them as context first
+      if (relevantMemories.length > 0) {
+        const contextMessage: Part = {
+          text: "Here's some relevant context from our previous conversation:\n" +
+            relevantMemories.map(m => `${m.type === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n')
+        };
+        handleMessage([contextMessage], false); // false means this isn't the end of the turn
+      }
+
+      // Store user message
+      await storeMemory(userMessage, 'user', mode);
+      
+      // Then send the actual message
+      handleMessage(parts, true);
+    } catch (error) {
+      console.error('Error handling user message:', error);
+    }
+  }, [client, videoStream, storeMemory, handleMessage, queryMemories]);
+
+  // Simplified response handling
+  useEffect(() => {
+    const handleContent = async (content: any) => {
+      if (!content.modelTurn?.parts) return;
+
+      const message = content.modelTurn.parts
+        .map((p: any) => p.text || '')
+        .join(' ');
+
+      if (!message) return;
+
+      const config = client.getConfig();
+      const mode = Boolean(videoStream) || config.generationConfig?.responseModalities === 'audio'
+        ? 'voice'
+        : 'text';
+
+      await storeMemory(message, 'assistant', mode);
+    };
+
+    client.on('content', handleContent);
+    return () => {
+      client.off('content', handleContent);
+      return undefined;
+    };
+  }, [client, videoStream, storeMemory]);
+
+  // Simplified thinking mode handling
   useEffect(() => {
     const handleToolCall = async (toolCall: any) => {
-      console.log('Tool call received:', toolCall);
-      
+      const thinkingCall = toolCall.functionCalls.find(
+        (fc: any) => fc.name === 'useThinkingMode'
+      );
+
+      if (thinkingCall) {
+        try {
+          const result = await callThinkingMode(
+            thinkingCall.args.query,
+            thinkingCall.args.showThoughtProcess ?? true
+          );
+          
+          setThinkingResult(result);
+          if (thinkingModeEnabled) {
+            setIsThinkingModalOpen(true);
+          }
+
+          client.sendToolResponse({
+            functionResponses: [{
+              response: { 
+                success: true,
+                result: result.finalAnswer,
+                thoughtProcess: result.thoughtProcess,
+                message: result.finalAnswer
+              },
+              id: thinkingCall.id
+            }]
+          });
+        } catch (error) {
+          console.error('Thinking mode error:', error);
+          client.sendToolResponse({
+            functionResponses: [{
+              response: { 
+                success: false, 
+                error: error instanceof Error ? error.message : 'Unknown error'
+              },
+              id: thinkingCall.id
+            }]
+          });
+        }
+      }
+
       const gifCall = toolCall.functionCalls.find(
         (fc: any) => fc.name === 'searchGif'
       );
@@ -240,68 +345,20 @@ function AppContent() {
             });
           });
       }
-
-      const thinkingCall = toolCall.functionCalls.find(
-        (fc: any) => fc.name === 'useThinkingMode'
-      );
-
-      if (thinkingCall) {
-        console.log('Thinking mode call detected:', thinkingCall);
-        try {
-          const query = thinkingCall.args.query;
-          // Use the showThoughtProcess value from the tool call, defaulting to true if not specified
-          const showThoughtProcess = thinkingCall.args.showThoughtProcess ?? true;
-
-          const result = await callThinkingMode(query, showThoughtProcess);
-          console.log('Thinking mode result:', result);
-          
-          // Always update the thinking result
-          setThinkingResult(result);
-          
-          // Show modal if thinking mode is enabled
-          if (thinkingModeEnabled) {
-            setIsThinkingModalOpen(true);
-          }
-
-          // Send the result back to the model
-          client.sendToolResponse({
-            functionResponses: [{
-              response: { 
-                success: true,
-                result: result.finalAnswer,
-                thoughtProcess: result.thoughtProcess,
-                // Only send final answer as context
-                message: result.finalAnswer
-              },
-              id: thinkingCall.id
-            }]
-          });
-
-          // Send just the final answer as a user message for the base model to analyze
-          const part: Part = { 
-            text: `${result.finalAnswer}\n\nPlease analyze this response and suggest any additional insights or tool usage if needed.`
-          };
-          client.send([part], true); // true means this is a complete turn, allowing the base model to respond
-        } catch (error) {
-          console.error('Thinking mode error:', error);
-          client.sendToolResponse({
-            functionResponses: [{
-              response: { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error'
-              },
-              id: thinkingCall.id
-            }]
-          });
-        }
-      }
     };
 
     client.on('toolcall', handleToolCall);
     return () => {
       client.off('toolcall', handleToolCall);
+      return undefined;
     };
   }, [client, thinkingModeEnabled]);
+
+  // Remove the message sending logic wrapper
+  useEffect(() => {
+    if (!client) return;
+    return () => undefined;
+  }, [client]);
 
   return (
     <div style={{ 
@@ -313,7 +370,7 @@ function AppContent() {
     }}>
       <TerminalLayout
         debugPanel={<DebugPanel />}
-        chatPanel={<ChatPanel />}
+        chatPanel={<ChatPanel onSendMessage={handleUserMessage} />}
         controlPanel={
           <ControlTray
             videoRef={videoRef}
