@@ -150,17 +150,23 @@ const InputContainer = styled.div`
   }
 `;
 
-const Input = styled.input`
+const TextArea = styled.textarea`
   width: 100%;
-  height: 40px;
+  min-height: 40px;
+  max-height: 120px;
   background: ${props => props.theme.colors.background};
   border: 1px solid ${props => props.theme.colors.secondary}44;
   border-radius: 4px;
   color: ${props => props.theme.colors.secondary};
-  padding: 0 16px;
+  padding: 8px 16px;
   font-family: ${props => props.theme.fonts.mono};
   font-size: 14px;
   transition: all 0.2s ease;
+  resize: none;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-word;
 
   &:focus {
     outline: none;
@@ -178,6 +184,44 @@ const Input = styled.input`
   }
 `;
 
+const CopyButton = styled.button`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: ${props => props.theme.colors.surface};
+  border: 1px solid ${props => props.theme.colors.secondary}44;
+  border-radius: 4px;
+  color: ${props => props.theme.colors.secondary};
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 3;
+
+  &:hover {
+    background: ${props => props.theme.colors.secondary}22;
+    border-color: ${props => props.theme.colors.secondary}88;
+  }
+
+  .material-symbols-outlined {
+    font-size: 14px;
+  }
+`;
+
+const MessageWrapper = styled.div<{ $isUser?: boolean }>`
+  position: relative;
+  max-width: 85%;
+  align-self: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
+
+  &:hover ${CopyButton} {
+    opacity: 1;
+  }
+`;
+
 interface ChatMessage {
   role: 'user' | 'model';
   content: string;
@@ -191,8 +235,38 @@ const extractTextFromParts = (parts: Part[]): string => {
     .join('');
 };
 
-export interface ChatPanelProps {
-  onSendMessage?: (parts: Part[]) => void;
+function CopyableMessage({ message, isUser }: { message: ChatMessage; isUser: boolean }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+  };
+
+  return (
+    <MessageWrapper $isUser={isUser}>
+      <Message $isUser={isUser}>
+        {message.content.includes('\n') || /[│┌┐└┘├┤┬┴┼]/.test(message.content) ? (
+          <pre>{message.content}</pre>
+        ) : message.content}
+      </Message>
+      <CopyButton onClick={handleCopy}>
+        <span className="material-symbols-outlined">
+          {copied ? 'check' : 'content_copy'}
+        </span>
+        {copied ? 'Copied!' : 'Copy'}
+      </CopyButton>
+    </MessageWrapper>
+  );
+}
+
+interface ChatPanelProps {
+  onSendMessage?: (parts: Part[]) => Promise<void>;
 }
 
 export default function ChatPanel({ onSendMessage }: ChatPanelProps) {
@@ -212,13 +286,18 @@ export default function ChatPanel({ onSendMessage }: ChatPanelProps) {
   // Listen for model responses
   useEffect(() => {
     const handleContent = (content: any) => {
+      console.log('Received content:', content); // Debug log
+      
       if (isModelTurn(content)) {
         const { parts } = content.modelTurn;
         const textContent = extractTextFromParts(parts);
+        console.log('Extracted text:', textContent); // Debug log
         
         if (textContent) {
+          // If we have a current message, append to it
           if (currentMessage) {
             setCurrentMessage(prev => prev + textContent);
+            // Update the last message
             setMessages(prev => {
               const newMessages = [...prev];
               if (newMessages.length > 0) {
@@ -230,6 +309,7 @@ export default function ChatPanel({ onSendMessage }: ChatPanelProps) {
               return newMessages;
             });
           } else {
+            // Start a new message
             setCurrentMessage(textContent);
             setMessages(prev => [...prev, {
               role: 'model',
@@ -243,11 +323,12 @@ export default function ChatPanel({ onSendMessage }: ChatPanelProps) {
 
     const handleInterrupted = () => {
       console.log('Message interrupted, preserving current state');
+      // Don't clear currentMessage here, keep it for continuation
     };
 
     const handleTurnComplete = () => {
       console.log('Turn complete, clearing current message');
-      setCurrentMessage('');
+      setCurrentMessage(''); // Clear current message only on turn complete
     };
 
     client.on('content', handleContent);
@@ -261,7 +342,7 @@ export default function ChatPanel({ onSendMessage }: ChatPanelProps) {
     };
   }, [client, currentMessage]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || !connected) return;
 
@@ -273,10 +354,12 @@ export default function ChatPanel({ onSendMessage }: ChatPanelProps) {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Send message to API
+    // Create part for the message
     const part: Part = { text: inputValue.trim() };
+
+    // Use onSendMessage if provided, otherwise use client.send
     if (onSendMessage) {
-      onSendMessage([part]);
+      await onSendMessage([part]);
     } else {
       client.send([part]);
     }
@@ -294,22 +377,27 @@ export default function ChatPanel({ onSendMessage }: ChatPanelProps) {
     <ChatContainer>
       <MessagesContainer>
         {messages.map((message, index) => (
-          <Message key={index} $isUser={message.role === 'user'}>
-            {message.content.includes('\n') || /[│┌┐└┘├┤┬┴┼]/.test(message.content) ? (
-              <pre>{message.content}</pre>
-            ) : message.content}
-          </Message>
+          <CopyableMessage 
+            key={index} 
+            message={message} 
+            isUser={message.role === 'user'} 
+          />
         ))}
         <div ref={messagesEndRef} />
       </MessagesContainer>
       <form onSubmit={handleSubmit}>
         <InputContainer>
-          <Input
-            type="text"
+          <TextArea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Type something..."
             disabled={!connected}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
           />
         </InputContainer>
       </form>

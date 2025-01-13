@@ -31,10 +31,25 @@ import ThinkingModal from './components/ThinkingModal/ThinkingModal';
 import { callThinkingMode } from './lib/thinking-service';
 import { Part } from "@google/generative-ai";
 import { useMemory } from './lib/hooks/useMemory';
+import { Memory } from './lib/memory-service';
+
+// Verify environment variables at startup
+console.log('Checking environment variables:', {
+  hasGeminiKey: !!process.env.REACT_APP_GEMINI_API_KEY,
+  hasPineconeKey: !!process.env.REACT_APP_PINECONE_API_KEY,
+  nodeEnv: process.env.NODE_ENV,
+  availableEnvVars: Object.keys(process.env).filter(key => key.startsWith('REACT_APP_'))
+});
 
 const API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 if (typeof API_KEY !== "string") {
   throw new Error("set REACT_APP_GEMINI_API_KEY in .env");
+}
+
+// Also verify Pinecone key
+const PINECONE_KEY = process.env.REACT_APP_PINECONE_API_KEY;
+if (typeof PINECONE_KEY !== "string") {
+  throw new Error("set REACT_APP_PINECONE_API_KEY in .env");
 }
 
 const host = "generativelanguage.googleapis.com";
@@ -89,6 +104,12 @@ const theme = {
 };
 
 function AppContent() {
+  const [messages, setMessages] = useState<Array<{
+    role: string;
+    content: string;
+    complete: boolean;
+    thinking?: boolean;
+  }>>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const [currentGifUrl, setCurrentGifUrl] = useState<string | null>(null);
@@ -149,35 +170,29 @@ function AppContent() {
 
   // Handle user message submissions from the chat panel
   const handleUserMessage = useCallback(async (parts: Part[]) => {
-    try {
-      const userMessage = parts.map(p => p.text || '').join(' ');
-      const config = client.getConfig();
-      const mode = Boolean(videoStream) || config.generationConfig?.responseModalities === 'audio' 
-        ? 'voice' 
-        : 'text';
+    if (!client) return;
 
-      // First query for relevant memories
-      const relevantMemories = await queryMemories(userMessage, 3, mode);
-      console.log('Retrieved memories:', relevantMemories);
-
-      // If we have relevant memories, send them as context first
-      if (relevantMemories.length > 0) {
-        const contextMessage: Part = {
-          text: "Here's some relevant context from our previous conversation:\n" +
-            relevantMemories.map(m => `${m.type === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n')
-        };
-        handleMessage([contextMessage], false); // false means this isn't the end of the turn
-      }
-
-      // Store user message
-      await storeMemory(userMessage, 'user', mode);
-      
-      // Then send the actual message
-      handleMessage(parts, true);
-    } catch (error) {
-      console.error('Error handling user message:', error);
+    // Get relevant memories before sending the message
+    const userMessage = parts[0].text || '';
+    const relevantMemories = await queryMemories(userMessage);
+    
+    // If we have relevant memories, add them as context
+    if (relevantMemories.length > 0) {
+      const contextMessage: Part = {
+        text: "Here's some relevant context from our previous conversation:\n" +
+          relevantMemories.map((m: Memory) => 
+            `${m.type === 'user' ? 'User' : 'Assistant'}: ${m.text}`
+          ).join('\n')
+      };
+      handleMessage([contextMessage], false); // false means this isn't the end of the turn
     }
-  }, [client, videoStream, storeMemory, handleMessage, queryMemories]);
+
+    // Send the actual user message
+    client.send(parts, true);
+
+    // Store the message in memory
+    await storeMemory(userMessage, 'user');
+  }, [client, queryMemories, storeMemory]);
 
   // Simplified response handling
   useEffect(() => {
@@ -209,40 +224,37 @@ function AppContent() {
   useEffect(() => {
     const handleToolCall = async (toolCall: any) => {
       const thinkingCall = toolCall.functionCalls.find(
-        (fc: any) => fc.name === 'useThinkingMode'
+        (call: { name: string; args: any; id: string }) => call.name === 'useThinkingMode'
       );
 
       if (thinkingCall) {
         try {
-          const result = await callThinkingMode(
-            thinkingCall.args.query,
-            thinkingCall.args.showThoughtProcess ?? true
-          );
-          
-          setThinkingResult(result);
-          if (thinkingModeEnabled) {
-            setIsThinkingModalOpen(true);
-          }
+          // Call the thinking service
+          const thinkingResult = await callThinkingMode(thinkingCall.args.query, thinkingCall.args.showThoughtProcess);
 
+          // Update thinking modal state
+          setThinkingResult({
+            thoughtProcess: thinkingResult.thoughtProcess,
+            finalAnswer: thinkingResult.finalAnswer
+          });
+          setIsThinkingModalOpen(true);
+
+          // Send the result back to the model as a tool response
           client.sendToolResponse({
             functionResponses: [{
-              response: { 
+              response: {
                 success: true,
-                result: result.finalAnswer,
-                thoughtProcess: result.thoughtProcess,
-                message: result.finalAnswer
+                result: thinkingResult.contextForGemini
               },
               id: thinkingCall.id
             }]
           });
+
         } catch (error) {
-          console.error('Thinking mode error:', error);
+          console.error('Thinking tool error:', error);
           client.sendToolResponse({
             functionResponses: [{
-              response: { 
-                success: false, 
-                error: error instanceof Error ? error.message : 'Unknown error'
-              },
+              response: { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
               id: thinkingCall.id
             }]
           });

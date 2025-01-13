@@ -5,36 +5,46 @@ import {
   ScoredPineconeRecord,
   RecordMetadata 
 } from "@pinecone-database/pinecone";
-import { useLoggerStore } from './store-logger';
-import { StreamingLog } from "../multimodal-live-types";
+import { useLoggerStore } from "./store-logger";
 
-const PINECONE_API_KEY = process.env.REACT_APP_PINCONE_API_KEY as string;
-const PINECONE_HOST = process.env.REACT_APP_PINCONE_HOST as string;
+// Helper function for logging
+const log = (message: string, data?: any) => {
+  useLoggerStore.getState().log({
+    date: new Date(),
+    type: 'tool',
+    message: data ? `${message} ${JSON.stringify(data)}` : message
+  });
+};
+
+const logError = (message: string, err: unknown) => {
+  useLoggerStore.getState().log({
+    date: new Date(),
+    type: 'error',
+    message: `${message} ${err instanceof Error ? err.message : String(err)}`
+  });
+};
+
+// Helper function to get byte length of a string
+const getByteLength = (str: string): number => {
+  return new TextEncoder().encode(str).length;
+};
+
+const PINECONE_API_KEY = process.env.REACT_APP_PINECONE_API_KEY as string;
+const PINECONE_HOST = process.env.REACT_APP_PINECONE_HOST as string;
 const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY as string;
 
 if (!PINECONE_API_KEY) {
-  throw new Error("REACT_APP_PINCONE_API_KEY is required");
+  throw new Error("REACT_APP_PINECONE_API_KEY is required");
 }
 
 // Initialize Gemini client for embeddings
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Initialize Pinecone client
+log('🌲 Initializing Pinecone client...');
 const pinecone = new Pinecone({
   apiKey: PINECONE_API_KEY
 });
-
-// Get logger instance
-const { log } = useLoggerStore.getState();
-
-// Helper function to create log entries
-function createLog(message: string, type: 'info' | 'error' = 'info'): StreamingLog {
-  return {
-    date: new Date(),
-    message,
-    type
-  };
-}
 
 // Index configuration
 const INDEX_NAME = "gemini-memory";
@@ -43,7 +53,8 @@ const DIMENSION = 768; // Dimension for Gemini embeddings
 const MAX_CHUNK_SIZE = 2048; // Maximum size in bytes for each chunk
 const CHUNK_OVERLAP = 200;   // Overlap between chunks in bytes
 
-interface Memory {
+// Export class and interface first
+export interface Memory {
   id: string;
   text: string;
   embedding: number[];
@@ -63,23 +74,20 @@ export class MemoryService {
   private index!: Index;
 
   constructor() {
+    log('🌲 Creating MemoryService instance...');
     this.initializeIndex();
   }
 
   private async initializeIndex() {
     try {
-      log(createLog('Initializing Pinecone connection...'));
-      
-      // List all indexes
+      log('🌲 Listing available Pinecone indexes...');
       const indexes = await pinecone.listIndexes();
-      log(createLog(`Found ${indexes.indexes?.length || 0} existing indexes`));
+      log('🌲 Found indexes:', { count: indexes.indexes?.length || 0, names: indexes.indexes?.map(idx => idx.name).join(', ') });
       
-      // Check if our index exists
       const existingIndex = indexes.indexes?.find(idx => idx.name === INDEX_NAME);
       
       if (!existingIndex) {
-        // Only create if index doesn't exist
-        log(createLog(`Creating new index: ${INDEX_NAME}`));
+        log('🌲 Creating new index:', { name: INDEX_NAME, dimension: DIMENSION, metric: 'cosine' });
         await pinecone.createIndex({
           name: INDEX_NAME,
           dimension: DIMENSION,
@@ -91,77 +99,57 @@ export class MemoryService {
             }
           }
         });
-
-        // Wait for index to be ready
-        log(createLog('Waiting for index to be ready...'));
-        let isReady = false;
-        while (!isReady) {
-          const description = await pinecone.describeIndex(INDEX_NAME);
-          if (description.status?.ready) {
-            isReady = true;
-          } else {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
+        log('🌲 Index created successfully');
       } else {
-        log(createLog(`Using existing index: ${INDEX_NAME}`));
+        log('🌲 Using existing index:', {
+          name: existingIndex.name,
+          dimension: existingIndex.dimension,
+          metric: existingIndex.metric,
+          status: existingIndex.status
+        });
       }
 
-      // Initialize index connection
+      log('🌲 Connecting to index...');
       this.index = pinecone.index(INDEX_NAME);
-      log(createLog(`Successfully connected to Pinecone index: ${INDEX_NAME}`));
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error initializing Pinecone';
-      log(createLog(`Failed to initialize Pinecone: ${errorMessage}`, 'error'));
-      throw error;
+      log('🌲 Successfully connected to Pinecone index:', { name: INDEX_NAME });
+    } catch (err) {
+      logError('🌲 Failed to initialize index', err);
+      throw err;
     }
-  }
-
-  /**
-   * Calculate the byte size of a string
-   */
-  private getByteSize(str: string): number {
-    return new TextEncoder().encode(str).length;
   }
 
   /**
    * Split text into chunks that fit within the embedding model's limits
    */
   private chunkText(text: string): string[] {
-    try {
-      log(createLog(`Chunking text of length ${text.length}`));
-      const chunks: string[] = [];
-      let currentChunk = '';
-      const words = text.split(' ');
+    log('🌲 Chunking text:', { length: text.length, maxSize: MAX_CHUNK_SIZE });
+    const chunks: string[] = [];
+    let currentChunk = '';
+    const words = text.split(' ');
 
-      for (const word of words) {
-        const potentialChunk = currentChunk + ' ' + word;
-        
-        if (this.getByteSize(potentialChunk) > 2048) { // Gemini's limit
-          if (currentChunk) {
-            chunks.push(currentChunk.trim());
-            currentChunk = word;
-          } else {
-            // If a single word is too long, split it
-            chunks.push(word.slice(0, 100)); // Take first 100 chars
-            currentChunk = word.slice(100);
-          }
+    for (const word of words) {
+      const potentialChunk = currentChunk + ' ' + word;
+      
+      if (getByteLength(potentialChunk) > MAX_CHUNK_SIZE) {
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+          currentChunk = word;
         } else {
-          currentChunk = potentialChunk;
+          // If a single word is too long, split it
+          chunks.push(word.slice(0, Math.floor(MAX_CHUNK_SIZE / 2))); // Use character length as approximation
+          currentChunk = '';
         }
+      } else {
+        currentChunk = potentialChunk;
       }
-
-      if (currentChunk) {
-        chunks.push(currentChunk.trim());
-      }
-
-      log(createLog(`Split text into ${chunks.length} chunks`));
-      return chunks;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error chunking text';
-      log(createLog(`Error chunking text: ${errorMessage}`, 'error'));
-      throw error;
     }
+
+    if (currentChunk) {
+      chunks.push(currentChunk.trim());
+    }
+
+    log('🌲 Text chunked into parts:', { count: chunks.length });
+    return chunks;
   }
 
   /**
@@ -169,65 +157,65 @@ export class MemoryService {
    */
   private async generateEmbedding(text: string): Promise<number[]> {
     try {
-      log(createLog(`Generating embedding for text of length ${text.length}`));
+      log('🌲 Generating embedding for text:', { length: text.length });
       
-      // Ensure text is within size limit
-      if (this.getByteSize(text) > 2048) {
-        throw new Error(`Text exceeds maximum size of 2048 bytes`);
+      if (getByteLength(text) > MAX_CHUNK_SIZE) {
+        throw new Error(`Text exceeds maximum chunk size of ${MAX_CHUNK_SIZE} bytes`);
       }
 
       const model = genAI.getGenerativeModel({ model: "embedding-001" });
       const result = await model.embedContent(text);
       const embedding = await result.embedding;
-      
-      log(createLog(`Successfully generated embedding`));
-      return [...Object.values(embedding)];
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error generating embedding';
-      log(createLog(`Error generating embedding: ${errorMessage}`, 'error'));
-      throw error;
+      const values = [...Object.values(embedding)];
+      log('🌲 Embedding generated successfully:', { dimensions: values.length });
+      return values;
+    } catch (err) {
+      logError('🌲 Error generating embedding', err);
+      throw err;
     }
   }
 
   /**
-   * Store a new memory
+   * Store a new memory, chunking if necessary
    */
   async storeMemory(
     text: string, 
     type: 'user' | 'assistant',
-    mode: 'text' | 'voice' = 'text'
+    mode: 'text' | 'voice' = 'text',
+    conversationId?: string
   ): Promise<void> {
     try {
-      // Generate a hash of the text to use as ID
-      const id = Date.now().toString();
+      log('🌲 Storing new memory:', { type, mode, textLength: text.length });
+      const chunks = this.chunkText(text);
       
-      // Generate embedding for the text
-      let embedding: number[];
-      try {
-        embedding = await this.generateEmbedding(text);
-      } catch (error) {
-        // If the text is too long, chunk it and use the first chunk's embedding
-        const chunks = this.chunkText(text);
-        embedding = await this.generateEmbedding(chunks[0]);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        log('🌲 Processing chunk:', { index: i + 1, total: chunks.length, length: chunk.length });
+        
+        const embedding = await this.generateEmbedding(chunk);
+        const id = `${Date.now()}_${i}`;
+
+        log('🌲 Upserting vector to Pinecone:', { id, chunkIndex: i });
+        await this.index.upsert([{
+          id,
+          values: embedding,
+          metadata: {
+            text: chunk,
+            timestamp: Date.now().toString(),
+            type: type.toString(),
+            mode: mode.toString(),
+            conversationId,
+            isChunk: (chunks.length > 1).toString(),
+            chunkIndex: i.toString(),
+            totalChunks: chunks.length.toString()
+          } as MemoryMetadata
+        }]);
+        log('🌲 Vector upserted successfully');
       }
-
-      // Store the memory
-      await this.index.upsert([{
-        id,
-        values: embedding,
-        metadata: {
-          text,
-          timestamp: Date.now().toString(),
-          type: type.toString(),
-          mode: mode.toString()
-        } as MemoryMetadata
-      }]);
-
-      log(createLog(`Successfully stored memory with ID: ${id}`));
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error storing memory';
-      log(createLog(`Error storing memory: ${errorMessage}`, 'error'));
-      throw error;
+      log('🌲 Memory storage completed');
+    } catch (err) {
+      logError('🌲 Error storing memory', err);
+      throw err;
     }
   }
 
@@ -240,42 +228,80 @@ export class MemoryService {
     mode?: 'text' | 'voice'
   ): Promise<Memory[]> {
     try {
-      const queryEmbedding = await this.generateEmbedding(query);
+      log('🌲 Querying memories:', { queryLength: query.length, limit, mode });
+      const queryChunks = this.chunkText(query);
+      const queryEmbedding = await this.generateEmbedding(queryChunks[0]);
       
-      const queryParams: any = {
+      const queryParams = {
         vector: queryEmbedding,
-        topK: limit,
-        includeMetadata: true
+        topK: limit * 2,
+        includeMetadata: true,
+        filter: mode ? { mode: { $eq: mode.toString() } } : undefined
       };
 
-      if (mode) {
-        queryParams.filter = {
-          mode: { $eq: mode.toString() }
-        };
-      }
-
+      log('🌲 Executing Pinecone query:', queryParams);
       const results = await this.index.query(queryParams);
+      log('🌲 Query returned matches:', { count: results.matches.length });
+
+      const processedResults = new Map<string, Memory>();
       
-      return results.matches
-        .filter((match: ScoredPineconeRecord) => match.metadata)
-        .map((match: ScoredPineconeRecord) => {
-          const metadata = match.metadata as MemoryMetadata;
-          return {
+      results.matches.forEach((match: ScoredPineconeRecord) => {
+        if (!match.metadata) {
+          throw new Error('No metadata found for match');
+        }
+        
+        const metadata = match.metadata as MemoryMetadata;
+        const baseId = match.id.includes('_') ? match.id.split('_')[0] : match.id;
+
+        if (!processedResults.has(baseId)) {
+          processedResults.set(baseId, {
             id: match.id,
             text: metadata.text,
             embedding: match.values || [],
             timestamp: parseInt(metadata.timestamp),
             type: metadata.type as 'user' | 'assistant',
             mode: metadata.mode as 'text' | 'voice'
-          };
-        })
-        .sort((a, b) => b.timestamp - a.timestamp);
-    } catch (error) {
-      console.error('Error querying memories:', error);
-      throw error;
+          });
+        } else if (metadata.isChunk === 'true') {
+          const existing = processedResults.get(baseId)!;
+          existing.text += ' ' + metadata.text;
+        }
+      });
+
+      const finalResults = Array.from(processedResults.values())
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, limit);
+      
+      // Format results for Gemini's context
+      const contextString = finalResults.map(memory => {
+        const timestamp = new Date(memory.timestamp).toLocaleString();
+        return `[${memory.type.toUpperCase()} ${timestamp}]: ${memory.text}`;
+      }).join('\n\n');
+
+      log('🌲 Formatted context for Gemini:', { 
+        memoryCount: finalResults.length,
+        contextPreview: contextString.slice(0, 100) + '...'
+      });
+
+      // Return both the raw results and formatted context
+      return Object.assign(finalResults, { 
+        contextString,
+        relevanceExplanation: `Found ${finalResults.length} relevant memories from the conversation history, ordered by recency. These memories provide context about previous interactions and their timestamps.`
+      });
+    } catch (err) {
+      logError('🌲 Error querying memories', err);
+      throw err;
     }
   }
 }
 
-// Export singleton instance
-export const memoryService = new MemoryService(); 
+// Create instance
+log('🌲 Creating MemoryService singleton instance...');
+const memoryService = new MemoryService();
+
+// Export instance and bound methods
+export { memoryService };
+export const storeMemory = (text: string, type: 'user' | 'assistant', mode: 'text' | 'voice' = 'text', conversationId?: string) => 
+  memoryService.storeMemory(text, type, mode, conversationId);
+export const queryMemories = (query: string, limit: number = 5, mode?: 'text' | 'voice') => 
+  memoryService.queryMemories(query, limit, mode); 

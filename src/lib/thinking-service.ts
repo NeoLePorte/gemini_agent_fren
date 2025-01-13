@@ -10,6 +10,7 @@ const genAI = new GoogleGenerativeAI(API_KEY, {
 interface ThinkingModeResult {
   thoughtProcess?: string;
   finalAnswer: string;
+  contextForGemini: string;
 }
 
 export async function callThinkingMode(query: string, showThoughtProcess: boolean = true): Promise<ThinkingModeResult> {
@@ -61,6 +62,7 @@ export async function callThinkingMode(query: string, showThoughtProcess: boolea
           // If no clear sections, use the whole text as final answer
           finalAnswer = text;
         }
+
       }
 
       console.log('Parsed parts:', { thoughtProcess, finalAnswer });
@@ -81,9 +83,13 @@ export async function callThinkingMode(query: string, showThoughtProcess: boolea
       finalAnswer
     });
 
+    // Format context for Gemini
+    const contextForGemini = `I've used my thinking tool to analyze this deeply. Here's what it concluded:\n\n${finalAnswer}\n\nBased on this analysis, I should now:\n1. Consider if I need to make any tool calls to gather more information\n2. Determine if I need to perform any actions\n3. Provide a comprehensive response that incorporates this analysis`;
+
     return {
       thoughtProcess: showThoughtProcess ? thoughtProcess : undefined,
-      finalAnswer
+      finalAnswer,
+      contextForGemini
     };
   } catch (error) {
     console.error('Thinking mode error:', error);

@@ -293,6 +293,14 @@ interface ThinkingModalProps {
 export default function ThinkingModal({ thoughtProcess, finalAnswer, onClose }: ThinkingModalProps) {
   const [isVisible, setIsVisible] = React.useState(false);
 
+  // Debug logging
+  React.useEffect(() => {
+    console.log('ThinkingModal received props:', {
+      thoughtProcess: thoughtProcess || 'no thoughts',
+      finalAnswer: finalAnswer || 'no answer'
+    });
+  }, [thoughtProcess, finalAnswer]);
+
   // Close on escape key
   React.useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -320,21 +328,13 @@ export default function ThinkingModal({ thoughtProcess, finalAnswer, onClose }: 
         <FloatingWindow className={isVisible ? 'visible' : ''}>
           <FrameContainer>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" preserveAspectRatio="none">
-              {/* Main frame with animated stroke-dashoffset */}
-              <path 
-                className="frame-border" 
-                d="M10,30 L30,10 L370,10 L390,30 L390,570 L370,590 L30,590 L10,570 Z" 
-              />
-              
-              {/* Top dots */}
+              <path className="frame-border" d="M10,30 L30,10 L370,10 L390,30 L390,570 L370,590 L30,590 L10,570 Z" />
               <circle className="frame-dots" cx="40" cy="10" r="2" />
               <circle className="frame-dots" cx="50" cy="10" r="2" />
               <circle className="frame-dots" cx="60" cy="10" r="2" />
               <circle className="frame-dots" cx="340" cy="10" r="2" />
               <circle className="frame-dots" cx="350" cy="10" r="2" />
               <circle className="frame-dots" cx="360" cy="10" r="2" />
-              
-              {/* Corner accents */}
               <path className="frame-accent" d="M30,10 L50,10 L30,30 Z" />
               <path className="frame-accent" d="M350,10 L370,10 L370,30 Z" />
               <path className="frame-accent" d="M30,570 L30,590 L50,590 Z" />
@@ -350,10 +350,10 @@ export default function ThinkingModal({ thoughtProcess, finalAnswer, onClose }: 
             </TitleBar>
             <Content>
               <ThoughtProcess>
-                {thoughtProcess || "No thoughts yet. Ask me a question that requires deep thinking!"}
+                {thoughtProcess ? thoughtProcess : "No thoughts yet. Ask me a question that requires deep thinking!"}
               </ThoughtProcess>
               <FinalAnswer>
-                {finalAnswer || "Waiting for final answer..."}
+                {finalAnswer ? finalAnswer : "Waiting for final answer..."}
               </FinalAnswer>
             </Content>
           </WindowContent>

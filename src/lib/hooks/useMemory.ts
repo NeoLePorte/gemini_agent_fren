@@ -1,35 +1,23 @@
 import { useCallback } from 'react';
-import { memoryService } from '../memory-service';
+import { Memory, storeMemory, queryMemories } from '../memory-service';
 
 export function useMemory() {
-  const storeMemory = useCallback(async (
-    text: string,
-    type: 'user' | 'assistant',
-    mode: 'text' | 'voice' = 'text'
-  ) => {
-    try {
-      await memoryService.storeMemory(text, type, mode);
-    } catch (error) {
-      console.error('Error storing memory:', error);
-    }
-  }, []);
+  const storeMemoryFn = useCallback(
+    async (text: string, type: 'user' | 'assistant', mode: 'text' | 'voice' = 'text', conversationId?: string) => {
+      return storeMemory(text, type, mode, conversationId);
+    },
+    []
+  );
 
-  const queryMemories = useCallback(async (
-    query: string,
-    limit: number = 5,
-    mode?: 'text' | 'voice'
-  ) => {
-    try {
-      return await memoryService.queryMemories(query, limit, mode);
-    } catch (error) {
-      console.error('Error querying memories:', error);
-      return [];
-    }
-  }, []);
+  const queryMemoriesFn = useCallback(
+    async (query: string, limit: number = 5, mode?: 'text' | 'voice') => {
+      return queryMemories(query, limit, mode);
+    },
+    []
+  );
 
   return {
-    storeMemory,
-    queryMemories,
-    memoryService
+    storeMemory: storeMemoryFn,
+    queryMemories: queryMemoriesFn,
   };
 } 
